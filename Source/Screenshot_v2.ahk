@@ -26,8 +26,7 @@ SnapshotFlashDuration := 100 ;milliseconds
 SnapshotFlashTransparency := 128    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
 SmallDelta := 10  ; the smallest screenshot that can be taken is 10x10 by pixel
-
-ConfigFilePath := A_ScriptDir "\.config.ini"
+GetConfig(A_ScriptDir "\.config.ini")
 
 GetConfig(configFile)
 {
@@ -358,4 +357,35 @@ log(text)
     global LogPath
 	  TimeString := FormatTime(A_Now, "yyyy/MM/dd-HH:mm:ss")
     FileAppend TimeString "`t" A_ComputerName "`t" text "`n", LogPath
+}
+
+
+SelectRegionToCapture()
+{
+    global selectedRegion, captureRegion
+    if (SelectRegion(&selectedRegion) < 0)
+		return
+    global captureRegion := selectedRegion.Clone()
+
+    StartTime := A_TickCount
+    sOutput := ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate)
+    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true)
+    return
+
+}
+
+RepeatLastCapture()
+{
+    global captureRegion
+	if !IsSet(captureRegion)
+    {
+        MonitorGet GetMonitorIndex(), &captureX, &captureY, &captureR, &captureB
+        captureRegion := RegionSetting()
+        captureRegion.SetRegionByPos(captureX, captureY, captureR, captureB)
+    }
+
+    StartTime := A_TickCount
+    sOutput := ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate)
+    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true)
+    return
 }
