@@ -37,13 +37,13 @@ GetConfig(configFile)
         global DPIs := StrSplit(IniRead(ConfigFile, "Sys", "DPI"),"|")
         if DPIs.Length < SysGet(80) ;monitor count
         {
-            MsgBox "Screen Monitor Configuration not correct"
+            MsgBox "Screen Monitor Configuration not correct", "Error", "iconx"
             ExitApp -1
         }
 
     } Catch Error as err
     {
-        MsgBox "Error Getting Configuartion, please check"
+        MsgBox "Error Getting Configuartion, please check", "Error", "iconx"
         ExitApp -1
     }
 }
@@ -67,7 +67,7 @@ CaptureScreenRegion(&region, sFilename:="",toClipboard:=False)
             pToken := Gdip_Startup()
             if !pToken
             {
-                MsgBox "Error, Gdip_Startup error, exiting the app"
+                MsgBox "Gdip_Startup error, exiting the app", "Error", "iconx"
                 ExitApp 1
             }
 
@@ -359,7 +359,7 @@ EnsureFolderExists(FolderPath)
         if !InStr(result, "D")
         {
             MsgBox FolderPath " is not a directory, please update it in .config.ini.", "Error", "iconx"
-            ExitApp
+            ExitApp -1
         }
     }
     Else{
