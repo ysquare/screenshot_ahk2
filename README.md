@@ -1,5 +1,5 @@
 # screenshot_ahk2
-A simple functioning screenshot script working with the AHKv2
+A simple functioning screenshot script working with AHKv2
 
 ## Introduction
 My little practice to implement screenshot application on AHKv2. Tested to work on AHK v2.0.2.
