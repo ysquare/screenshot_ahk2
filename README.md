@@ -27,5 +27,5 @@ __Import__ Please make sure you update .config.ini before running the AHK scrip 
 
 
 ## Credits
-1. Gdip library: gdip_all.ahk: is updated based on [mmikeww](https://github.com/mmikeww/AHKv2-Gdip)'s work, edited the file to make it work for released AHKv2 (mmikeww's version worked on AHK v2-a108).
+1. Gdip library: gdip_all.ahk is updated based on [mmikeww](https://github.com/mmikeww/AHKv2-Gdip)'s work. The file is updated to work with released AHKv2 (mmikeww's version worked on AHK v2-a108).
 2. Got the original screen selection idea from https://autohotkey.com/board/topic/45921-letuserselectrect-select-a-portion-of-the-screen/.
