@@ -7,8 +7,6 @@ SendMode "Input"
 ;  take screen shot
 ;==================================================
 
-selectedRegion := RegionSetting()
-
 ^#+r::
 {
     SelectRegionToCapture()

@@ -351,14 +351,35 @@ GetMonitorIndex(region:=0)
     return 0
 }
 
-; for debugging purpose
+EnsureFolderExists(FolderPath)
+{
+    result := FileExist(FolderPath)
+    if result
+    {
+        if !InStr(result, "D")
+        {
+            MsgBox FolderPath " is not a directory, please update it in .config.ini.", "Error", "iconx"
+            ExitApp
+        }
+    }
+    Else{
+        DirCreate(FolderPath)
+    }
+    if SubStr(FolderPath, -1) != "\"
+        FolderPath .= "\"
+    return FolderPath
+}
+
 log(text)
 {
     global LogPath
-	  TimeString := FormatTime(A_Now, "yyyy/MM/dd-HH:mm:ss")
+    SplitPath(LogPath, ,&OutDir)
+    EnsureFolderExists(OutDir)
+	TimeString := FormatTime(A_Now, "yyyy/MM/dd-HH:mm:ss")
     FileAppend TimeString "`t" A_ComputerName "`t" text "`n", LogPath
 }
 
+selectedRegion := RegionSetting()
 
 SelectRegionToCapture()
 {
@@ -368,8 +389,9 @@ SelectRegionToCapture()
     global captureRegion := selectedRegion.Clone()
 
     StartTime := A_TickCount
-    sOutput := ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate)
+    sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
     CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true)
+    log "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 
 }
@@ -385,7 +407,8 @@ RepeatLastCapture()
     }
 
     StartTime := A_TickCount
-    sOutput := ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate)
+    sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
     CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true)
+    log "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 }
