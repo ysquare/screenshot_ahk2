@@ -20,7 +20,7 @@ My little practice to implement screenshot application on AHKv2. Tested to work 
 9. screenshot is saved to file (abs path configured in .config.ini) and clipboard for further use.
 
 ### Configuration in .config.ini
-__Import__ Please make sure you update .config.ini before running the AHK scrip for the first time
+__Important__ Please make sure you update .config.ini before running the AHK scrip for the first time
 1. LogPath: A relative path (starting from the script folder) to the log file for AHK to log important messages
 2. ScreenshotPath: an absolute path to the folder that stores all captured pictures
 3. DPI is a fix for capture on multiple screens with different screen scales. Refer to Display Settings on Windows, set 96 for 100% scale, 120 for 125%, 144 for 150%, and so on. DPIs should be separated with "|"
