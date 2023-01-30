@@ -213,22 +213,24 @@ TearingDown:
         ; winclass := region.GetClassName() ; not using winclass now
 
         if BorderSettings.Has(processname)
-        {
             region.borders := BorderSettings[processname]
-            if (ThisHotKey = "s")
-                region.change_border("SET")
-            else if (ThisHotKey = "r")
-                region.change_border("RATIO")
-            else if (ThisHotKey = "t")
-                region.change_border("TOP")
-            else if (ThisHotKey = "w")
-                region.change_border("RIGHT")
-            else if (ThisHotkey = "l")
-                region.change_border("LEFT")
-            else if (ThisHotkey = "h")
-                region.change_border("BOTTOM")
-            region.moveGui(myGui)
-        }
+        else
+            region.borders := BorderSettings["default"]
+        
+        if (ThisHotKey = "s")
+            region.change_border("SET")
+        else if (ThisHotKey = "r")
+            region.change_border("RATIO")
+        else if (ThisHotKey = "t")
+            region.change_border("TOP")
+        else if (ThisHotKey = "w")
+            region.change_border("RIGHT")
+        else if (ThisHotkey = "l")
+            region.change_border("LEFT")
+        else if (ThisHotkey = "h")
+            region.change_border("BOTTOM")
+        region.moveGui(myGui)
+
     }
 
     RegionDrag_Update()

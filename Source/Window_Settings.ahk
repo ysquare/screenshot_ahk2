@@ -30,6 +30,8 @@ Class CyclicArray
 
 }
 
+; declaring the default settings here so objects can be reused
+default_settings := CyclicArray({l:0, t:0, r:0, b:0, ratio:0})
 default_ratios := CyclicArray(9/16, 3/4, 0) ; ratio=0 means original ratio
 default_tops := CyclicArray(0)
 default_rights := CyclicArray(0)
@@ -42,7 +44,7 @@ Class BorderSetting
     setting_index := 0  ; zero based
     current_setting := {l:0, t:0, r:0, b:0, ratio:0}
     
-    settings := []
+    settings := default_settings
     ratios := default_ratios
     tops := default_tops
     rights := default_rights
