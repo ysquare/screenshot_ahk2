@@ -1,5 +1,5 @@
 # screenshot_ahk2
-A simple functioning screenshot script working with the AHKv2
+A simple functioning screenshot script working with AHKv2
 
 ## Introduction
 My little practice to implement screenshot application on AHKv2. Tested to work on AHK v2.0.2.
@@ -20,12 +20,12 @@ My little practice to implement screenshot application on AHKv2. Tested to work 
 9. screenshot is saved to file (abs path configured in .config.ini) and clipboard for further use.
 
 ### Configuration in .config.ini
-__Import__ Please make sure you update .config.ini before running the AHK scrip for the first time
-1. A relative path for log file for AHK to log important messages
-2. ScreenshotPath is an absolute path to the folder to store all the captured picture
+__Important__ Please make sure you update .config.ini before running the AHK scrip for the first time
+1. LogPath: A relative path (starting from the script folder) to the log file for AHK to log important messages
+2. ScreenshotPath: an absolute path to the folder that stores all captured pictures
 3. DPI is a fix for capture on multiple screens with different screen scales. Refer to Display Settings on Windows, set 96 for 100% scale, 120 for 125%, 144 for 150%, and so on. DPIs should be separated with "|"
 
 
 ## Credits
-1. Gdip library: gdip_all.ahk: is updated based on [mmikeww](https://github.com/mmikeww/AHKv2-Gdip)'s work, edited the file to make it work for released AHKv2 (mmikeww's version worked on AHK v2-a108).
+1. Gdip library: gdip_all.ahk is updated based on [mmikeww](https://github.com/mmikeww/AHKv2-Gdip)'s work. The file is updated to work with released AHKv2 (mmikeww's version worked on AHK v2-a108).
 2. Got the original screen selection idea from https://autohotkey.com/board/topic/45921-letuserselectrect-select-a-portion-of-the-screen/.
