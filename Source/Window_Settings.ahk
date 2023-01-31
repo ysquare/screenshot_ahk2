@@ -25,7 +25,7 @@ Class CyclicArray
 
     reset()
     {
-        current_index := 0
+        this.current_index := 0
     }
 
 }
@@ -87,7 +87,7 @@ Class BorderSetting
 
     reset()
     {
-        this.settings.reset()
+        this.settings.reset(), this.ratios.reset()
         this.lefts.reset(), this.tops.reset(), this.rights.reset(), this.bottoms.reset()
         return this
     }
@@ -296,7 +296,7 @@ Class RegionSetting
 
     reset_borders()
     {
-        this.borders := BorderSettings["default"]
+        this.borders.reset()
         this.left_border    := 0
         this.top_border     := 0
         this.right_border   := 0

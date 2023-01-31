@@ -200,6 +200,13 @@ TearingDown:
             if (!IsSet(vX0) || !IsSet(Vy0) || (vX!=vX0 or vY!=vY0))
             {
                 myGui.Show "Hide"
+
+                processname := region.GetProcessName()
+                if BorderSettings.Has(processname)
+                    region.borders := BorderSettings[processname]
+                else
+                    region.borders := BorderSettings["default"]
+
                 GetWindowRegionFromMouse(&region)
                 myGui.Show(region.GuiString())
                 vX0 := vX, vY0 := vY
@@ -209,13 +216,6 @@ TearingDown:
 
     SelectWindow_PresetUpdate(ThisHotkey)
     {
-        processname := region.GetProcessName()
-        ; winclass := region.GetClassName() ; not using winclass now
-
-        if BorderSettings.Has(processname)
-            region.borders := BorderSettings[processname]
-        else
-            region.borders := BorderSettings["default"]
         
         if (ThisHotKey = "s")
             region.change_border("SET")
