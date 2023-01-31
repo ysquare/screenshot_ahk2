@@ -95,7 +95,7 @@ Class BorderSetting
 
 }
 
-DefaultSetting := BorderSetting()
+DefaultBorder := BorderSetting()
 
 zoom := BorderSetting()
 zoom.settings := CyclicArray(
@@ -134,7 +134,7 @@ explorer.bottoms := CyclicArray(10,20,30,0)
 
 
 BorderSettings := Map()
-BorderSettings["default"] := DefaultSetting ; this should always exist
+BorderSettings["default"] := DefaultBorder ; this should always exist
 BorderSettings["Zoom.exe"] := zoom
 BorderSettings["Teams.exe"] := teams
 BorderSettings["lync.exe"] := lync
