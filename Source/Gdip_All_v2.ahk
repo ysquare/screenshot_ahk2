@@ -375,10 +375,10 @@ Gdip_BitmapFromScreen(Screen:=0, Raster:="")
 ;
 ; notes					Window must not be not minimised in order to get a handle to it's client area
 
-Gdip_BitmapFromHWND(hwnd, scale)
+Gdip_BitmapFromHWND(hwnd)
 {
 	WinGetRect(hwnd,,, &Width, &Height)
-	hbm := CreateDIBSection(Width*scale, Height*scale), hdc := CreateCompatibleDC(), obm := SelectObject(hdc, hbm)
+	hbm := CreateDIBSection(Width, Height), hdc := CreateCompatibleDC(), obm := SelectObject(hdc, hbm)
 	PrintWindow(hwnd, hdc)
 	pBitmap := Gdip_CreateBitmapFromHBITMAP(hbm)
 	SelectObject(hdc, obm), DeleteObject(hbm), DeleteDC(hdc)

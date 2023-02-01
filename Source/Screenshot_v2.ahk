@@ -17,6 +17,9 @@
 ; ==============================================================================
 ; Configuration Sector
 ; Transparancy ranges from 0 - 255, 0 is fully transparent, 255 is opaque
+
+DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr")
+
 SelectionColor := "Green"
 SelectionTransparency := 64   ; 0-255
 ConfirmColor := 0x0078D7 ; this is the same color with default window title bar
@@ -34,12 +37,6 @@ GetConfig(configFile)
     {
         global LogPath := A_WorkingDir "\" IniRead(configFile , "Path" , "LogPath")
         global ScreenshotPath := IniRead(configFile, "Path", "ScreenshotPath")
-        global DPIs := StrSplit(IniRead(ConfigFile, "Sys", "DPI"),"|")
-        if DPIs.Length < SysGet(80) ;monitor count
-        {
-            MsgBox "Screen Monitor Configuration not correct", "Error", "iconx"
-            ExitApp -1
-        }
 
     } Catch Error as err
     {
@@ -61,8 +58,6 @@ CaptureScreenRegion(&region, sFilename:="",toClipboard:=False)
         monitor_index := GetMonitorIndex(region)  ; todo: change GetMonitorIndex()
         if monitor_index > 0  ; only do capture when window is in normal status, not when it's minimized or hidden
         {
-            Scale := DPIs[monitor_index] / A_ScreenDPI
-
             ; start GDI and do the screen capture
             pToken := Gdip_Startup()
             if !pToken
@@ -71,7 +66,7 @@ CaptureScreenRegion(&region, sFilename:="",toClipboard:=False)
                 ExitApp 1
             }
 
-            pBitmap := Gdip_BitmapFromScreen(region.ScreenString(Scale), 0x40cc0020) ; always getting bitmap from screen, not from window
+            pBitmap := Gdip_BitmapFromScreen(region.ScreenString(), 0x40cc0020) ; always getting bitmap from screen, not from window
             if toClipboard
                 Gdip_SetBitmapToClipboard(pBitmap)
             if sFilename
