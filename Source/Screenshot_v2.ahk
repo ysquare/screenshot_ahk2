@@ -134,6 +134,7 @@ SelectRegion(&region)
     ; here during window selection, selectState: 0 - selecting windows, 1 - mouse down, -1 - canceled (ESC or right click)
     Hotkey "s", SelectWindow_PresetUpdate, "On"  ; adjusting the whole set
     Hotkey "r", SelectWindow_PresetUpdate, "On"  ; adjusting ratio
+    Hotkey "e", SelectWindow_PresetUpdate, "On"  ; adjusting extended cut
     Hotkey "t", SelectWindow_PresetUpdate, "On"  ; adjusting top only
     Hotkey "w", SelectWindow_PresetUpdate, "On"  ; adjusting width only
     Hotkey "l", SelectWindow_PresetUpdate, "On"  ; adjusting left only
@@ -153,6 +154,7 @@ SelectRegion(&region)
     SetTimer(SelectWindow_Update, 0)
     Hotkey "s", SelectWindow_PresetUpdate, "Off"
     Hotkey "r", SelectWindow_PresetUpdate, "Off"
+    Hotkey "e", SelectWindow_PresetUpdate, "Off"
     Hotkey "t", SelectWindow_PresetUpdate, "Off"
     Hotkey "w", SelectWindow_PresetUpdate, "Off"
     Hotkey "l", SelectWindow_PresetUpdate, "Off"
@@ -224,6 +226,8 @@ TearingDown:
             region.change_border("LEFT")
         else if (ThisHotkey = "h")
             region.change_border("BOTTOM")
+        else if (ThisHotkey = "e")
+            region.change_border("EXTENDED") ; extend the region to the next ratio
         region.moveGui(myGui)
 
     }

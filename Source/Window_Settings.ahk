@@ -31,18 +31,19 @@ Class CyclicArray
 }
 
 ; declaring the default settings here so objects can be reused
-default_settings := CyclicArray({l:0, t:0, r:0, b:0, ratio:0})
-default_ratios := CyclicArray(9/16, 3/4, 0) ; ratio=0 means original ratio
+default_settings := CyclicArray({l:0, t:0, r:0, b:0, ratio:0, extended_cut:0})
+default_ratios := CyclicArray(9/16, 10/16, 3/4, 0) ; ratio=0 means original ratio
 default_tops := CyclicArray(0)
 default_rights := CyclicArray(0)
 default_lefts := CyclicArray(0)
 default_bottoms := CyclicArray(0)
+default_extended_cut := CyclicArray(1, 0)
 
 
 Class BorderSetting
 {
     setting_index := 0  ; zero based
-    current_setting := {l:0, t:0, r:0, b:0, ratio:0}
+    current_setting := {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
     
     settings := default_settings
     ratios := default_ratios
@@ -50,8 +51,9 @@ Class BorderSetting
     rights := default_rights
     lefts := default_lefts
     bottoms := default_bottoms
+    extended_cut := default_extended_cut
 
-    get_next_setting(&left_border, &top_border, &right_border, &bottom_border, &aspect_ratio)
+    get_next_setting(&left_border, &top_border, &right_border, &bottom_border, &aspect_ratio, &extended_cut)
     {
         ; notice: cannot assign setting in set to current_setting directly
         ; otherwise the setting in global set will be altered by ratio/t/r/l/b operations
@@ -61,6 +63,7 @@ Class BorderSetting
         right_border := current_setting.r
         bottom_border := current_setting.b
         aspect_ratio := current_setting.ratio
+        extended_cut := current_setting.extended_cut
     }
 
     get_ratio()
@@ -85,6 +88,11 @@ Class BorderSetting
         return this.bottoms.current_move_next()
     }
 
+    get_extended_cut()
+    {
+        return this.extended_cut.current_move_next()
+    }
+    
     reset()
     {
         this.settings.reset(), this.ratios.reset()
@@ -99,33 +107,33 @@ DefaultBorder := BorderSetting()
 
 zoom := BorderSetting()
 zoom.settings := CyclicArray(
-    {l:0, t:0, r:0, b:80, ratio:0},
-    {l:0, t:0, r:0, b:0, ratio:0}
+    {l:0, t:0, r:0, b:80, ratio:0, extended_cut:0},
+    {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}   
 )
 
 teams := BorderSetting()
 teams.settings := CyclicArray(
-    {l:7, t:90+8, r:6+369, b:8, ratio:0},
-    {l:7, t:59+90+7, r:6+369, b:7, ratio:0},
-    {l:7, t:90+7+197+6, r:7+480, b: 7, ratio:0},
-    {l:7, t:59+90+7+197+6, r:7+480, b: 7, ratio:0},
-    {l:0, t:0, r:0, b:0, ratio:0}
+    {l:7, t:90+8, r:6+369, b:8, ratio:0, extended_cut:0},
+    {l:7, t:59+90+7, r:6+369, b:7, ratio:0, extended_cut:0},
+    {l:7, t:90+7+197+6, r:7+480, b: 7, ratio:0, extended_cut:0},
+    {l:7, t:59+90+7+197+6, r:7+480, b: 7, ratio:0, extended_cut:0},
+    {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
 )
 teams.tops := CyclicArray(98, 156, 300, 359, 0)
 teams.rights := CyclicArray(382, 494, 0)
 
 lync := BorderSetting()
 lync.settings := CyclicArray(
-    {l:5, t:3, r:5, b:3, ratio:0},
-    {l:5, t:5, r:5, b:5, ratio:0},
-    {l:0, t:0, r:0, b:0, ratio:0}
+    {l:5, t:3, r:5, b:3, ratio:0, extended_cut:0},
+    {l:5, t:5, r:5, b:5, ratio:0, extended_cut:0},
+    {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
 )
 
 explorer := BorderSetting()
 explorer.settings := CyclicArray(
-    {l:10, t:10, r:10, b: 10, ratio: 0},
-    {l:30, t:10, r:50, b: 50, ratio: 0},
-    {l:0, t:0, r:0, b:0, ratio:0}
+    {l:10, t:10, r:10, b: 10, ratio: 0, extended_cut:0},
+    {l:30, t:10, r:50, b: 50, ratio: 0, extended_cut:0},
+    {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
 )
 explorer.tops := CyclicArray(10,20,30,0)
 explorer.lefts := CyclicArray(10,20,30,0)
@@ -154,23 +162,36 @@ Class RegionSetting
     right_border    := 0
     bottom_border   := 0
     aspect_ratio    := 0
+    extended_cut    := 0
     
-    Static adjustAspectRatio(&x, &y, &w, &h, target_h_w_ratio)  ;h/w ratio is easier wholy divided
+    Static adjustAspectRatio(&x, &y, &w, &h, target_h_w_ratio, extended_cut)  ;h/w ratio is easier wholy divided
     {
         if ( target_h_w_ratio <= 0 || h*w = 0)
             return
         ratio := h/w
-        if (ratio > target_h_w_ratio)
+        if (ratio > target_h_w_ratio) ; 如果高宽比大于目标高宽比，则裁剪高度
         {
             h_new := w * target_h_w_ratio
             y += Round((h - h_new) / 2)
             h := Round(h_new)
+            if (extended_cut = 1) ; 如果开启扩展裁剪，则在裁剪高度的基础上进一步裁剪宽度，将9/16和10/16的屏横向适配到3/4
+            {
+                w_new := Round(h_new * 4/3)
+                x += Round((w - w_new) / 2)
+                w := Round(w_new)
+            }
         }
-        Else if (ratio < target_h_w_ratio)
+        Else if (ratio < target_h_w_ratio) ; 如果高宽比小于目标高宽比，则裁剪宽度
         {
             w_new := h / target_h_w_ratio
             x += Round((w - w_new) / 2)
             w := Round(w_new)
+            if (extended_cut = 1) ; 如果开启扩展裁剪，则在裁剪宽度的基础上进一步裁剪高度，将10/16和3/4的屏纵向适配到9/16
+            {
+                h_new := Round(w_new * 9/16)
+                y += Round((h - h_new) / 2)
+                h := Round(h_new)
+            }
         }
     }
 
@@ -187,7 +208,7 @@ Class RegionSetting
         OutWidth := this.right - this.right_border - OutX
         OutHeight := this.bottom - this.bottom_border - OutY
         
-        RegionSetting.adjustAspectRatio(&OutX, &OutY, &OutWidth, &OutHeight, this.aspect_ratio)
+        RegionSetting.adjustAspectRatio(&OutX, &OutY, &OutWidth, &OutHeight, this.aspect_ratio, this.extended_cut)
 
         return (OutWidth>0 && OutHeight>0)
     }
@@ -275,12 +296,13 @@ Class RegionSetting
     {
         If (option = "SET")
         {
-            this.borders.get_next_setting(&left_border, &top_border, &right_border, &bottom_border, &aspect_ratio)
+            this.borders.get_next_setting(&left_border, &top_border, &right_border, &bottom_border, &aspect_ratio, &extended_cut)
             this.left_border    := left_border
             this.top_border     := top_border
             this.right_border   := right_border
             this.bottom_border  := bottom_border
             this.aspect_ratio   := aspect_ratio
+            this.extended_cut   := extended_cut
         }
         Else If (option = "LEFT")
             this.left_border := this.borders.get_left()
@@ -292,6 +314,8 @@ Class RegionSetting
             this.bottom_border := this.borders.get_bottom()
         else if (option = "RATIO")
             this.aspect_ratio := this.borders.get_ratio()
+        else if (option = "EXTENDED")
+            this.extended_cut := this.borders.get_extended_cut()
     }
 
     reset_borders()
