@@ -113,14 +113,22 @@ zoom.settings := CyclicArray(
 
 teams := BorderSetting()
 teams.settings := CyclicArray(
-    {l:7, t:90+8, r:6+369, b:8, ratio:0, extended_cut:0},
-    {l:7, t:59+90+7, r:6+369, b:7, ratio:0, extended_cut:0},
-    {l:7, t:90+7+197+6, r:7+480, b: 7, ratio:0, extended_cut:0},
-    {l:7, t:59+90+7+197+6, r:7+480, b: 7, ratio:0, extended_cut:0},
+    {l:5, t:120, r:305, b:4, ratio:9/16, extended_cut:0},
+    {l:5, t:120, r:205, b:4, ratio:9/16, extended_cut:0},
+    {l:5, t:120, r:4, b: 4, ratio:9/16, extended_cut:0},
     {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
 )
 teams.tops := CyclicArray(98, 156, 300, 359, 0)
 teams.rights := CyclicArray(382, 494, 0)
+
+wemeet := BorderSetting()
+wemeet.settings := CyclicArray(
+    {l:1+9, t:51+9, r:2+9, b:2+9, ratio:9/16, extended_cut:0},
+    {l:1+9, t:51+9, r:476+9, b:2+9, ratio:9/16, extended_cut:0},
+    {l:1, t:51, r:2, b:2, ratio:9/16, extended_cut:0},
+    {l:1, t:51, r:476, b:2, ratio:9/16, extended_cut:0},
+    {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
+)
 
 lync := BorderSetting()
 lync.settings := CyclicArray(
@@ -145,6 +153,9 @@ BorderSettings := Map()
 BorderSettings["default"] := DefaultBorder ; this should always exist
 BorderSettings["Zoom.exe"] := zoom
 BorderSettings["Teams.exe"] := teams
+BorderSettings["ms-teams.exe"] := teams
+BorderSettings["msedgewebview2.exe"] := teams
+BorderSettings["wemeetapp.exe"] := wemeet
 BorderSettings["lync.exe"] := lync
 BorderSettings["explorer.exe"] := explorer
 
