@@ -18,6 +18,10 @@
 ; Configuration Sector
 ; Transparancy ranges from 0 - 255, 0 is fully transparent, 255 is opaque
 
+; Credits
+; UIA.ahk from https://github.com/Descolada/UIA-v2/tree/main
+
+
 DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr")
 
 SelectionColor := "Green"
@@ -132,6 +136,7 @@ SelectRegion(&region)
 
     ; globally, selectState means the status: 0 - stay in current state, 1 - should go to the next state, -1: user canceled
     ; here during window selection, selectState: 0 - selecting windows, 1 - mouse down, -1 - canceled (ESC or right click)
+    Hotkey "f", SelectWindow_PresetUpdate, "On"  ; toggle content focus
     Hotkey "s", SelectWindow_PresetUpdate, "On"  ; adjusting the whole set
     Hotkey "r", SelectWindow_PresetUpdate, "On"  ; adjusting ratio
     Hotkey "e", SelectWindow_PresetUpdate, "On"  ; adjusting extended cut
@@ -152,6 +157,7 @@ SelectRegion(&region)
         Sleep 10
     }
     SetTimer(SelectWindow_Update, 0)
+    Hotkey "f", SelectWindow_PresetUpdate, "Off"
     Hotkey "s", SelectWindow_PresetUpdate, "Off"
     Hotkey "r", SelectWindow_PresetUpdate, "Off"
     Hotkey "e", SelectWindow_PresetUpdate, "Off"
@@ -213,8 +219,9 @@ TearingDown:
 
     SelectWindow_PresetUpdate(ThisHotkey)
     {
-        
-        if (ThisHotKey = "s")
+        if (ThisHotKey = "f")
+            region.toggle_content_focus()
+        else if (ThisHotKey = "s")
             region.change_border("SET")
         else if (ThisHotKey = "r")
             region.change_border("RATIO")
