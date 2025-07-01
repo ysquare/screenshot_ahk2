@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-#include ./Gdip_All_v2.ahk
+#include Lib/Gdip_All_v2.ahk
 #Include ./Window_Settings.ahk
 
 ; Credits
