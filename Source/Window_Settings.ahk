@@ -115,10 +115,7 @@ zoom.settings := CyclicArray(
 
 teams := BorderSetting()
 teams.settings := CyclicArray(
-    {l:4, t:4, r:2, b:0, ratio:0, extended_cut:0},
-    {l:5, t:120, r:305, b:4, ratio:9/16, extended_cut:0},
-    {l:5, t:120, r:205, b:4, ratio:9/16, extended_cut:0},
-    {l:5, t:120, r:4, b: 4, ratio:9/16, extended_cut:0},
+    {l:3, t:4, r:2, b:3, ratio:0, extended_cut:0},
     {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
 )
 teams.tops := CyclicArray(98, 156, 300, 359, 0)
@@ -126,10 +123,7 @@ teams.rights := CyclicArray(382, 494, 0)
 
 wemeet := BorderSetting()
 wemeet.settings := CyclicArray(
-    {l:1+9, t:51+9, r:2+9, b:2+9, ratio:9/16, extended_cut:0},
-    {l:1+9, t:51+9, r:476+9, b:2+9, ratio:9/16, extended_cut:0},
-    {l:1, t:51, r:2, b:2, ratio:9/16, extended_cut:0},
-    {l:1, t:51, r:476, b:2, ratio:9/16, extended_cut:0},
+    {l:1, t:1, r:0, b:0, ratio:0, extended_cut:0},
     {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
 )
 
@@ -158,7 +152,7 @@ BorderSettings["Zoom.exe"] := zoom
 BorderSettings["Teams.exe"] := teams
 BorderSettings["ms-teams.exe"] := teams
 BorderSettings["msedgewebview2.exe"] := teams
-BorderSettings["wemeetapp.exe"] := wemeet
+BorderSettings["WeMeetApp.exe"] := wemeet
 BorderSettings["lync.exe"] := lync
 BorderSettings["explorer.exe"] := explorer
 
@@ -172,6 +166,7 @@ Class RegionSetting
 
     is_focus_content := false
     focus_content_element := "" ; the element with Name "共享内容视图"
+    focus_win_id := 0
 
     borders := BorderSettings["default"]
     left_border     := 0
@@ -284,7 +279,7 @@ Class RegionSetting
             return
         Try
         {
-            if (this.is_focus_content)
+            if (this.is_focus_content && this.focus_win_id = this.win_id)
             {
                 rect := this.focus_content_element.BoundingRectangle
                 this.left := rect.l, this.top := rect.t, this.right := rect.r, this.bottom := rect.b
@@ -337,9 +332,11 @@ Class RegionSetting
                 root := UIA.ElementFromHandle(teamsHwnd)
                 try {
                     this.focus_content_element := root.FindFirst({Name: "共享内容视图"}).FindFirst({Type:"Menu"})
+                    this.focus_win_id := this.win_id
                 } catch {
                     this.is_focus_content := false
                     this.focus_content_element := 0
+                    this.focus_win_id := 0
                 }
                 return
             }
@@ -353,9 +350,11 @@ Class RegionSetting
                 root := UIA.ElementFromHandle(wemeetHwnd)
                 try {
                     this.focus_content_element := root.FindFirst({Type: "Group", Name: "VideoLayoutExtensionWidget", ClassName: "QFWidget"})
+                    this.focus_win_id := this.win_id
                 } catch {
                     this.is_focus_content := false
                     this.focus_content_element := 0
+                    this.focus_win_id := 0
                 }
                 return
             }
