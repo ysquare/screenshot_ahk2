@@ -115,6 +115,7 @@ zoom.settings := CyclicArray(
 
 teams := BorderSetting()
 teams.settings := CyclicArray(
+    {l:4, t:4, r:2, b:0, ratio:0, extended_cut:0},
     {l:5, t:120, r:305, b:4, ratio:9/16, extended_cut:0},
     {l:5, t:120, r:205, b:4, ratio:9/16, extended_cut:0},
     {l:5, t:120, r:4, b: 4, ratio:9/16, extended_cut:0},
