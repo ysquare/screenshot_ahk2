@@ -32,7 +32,7 @@ SnapshotFlashColor := "Gray"
 SnapshotFlashDuration := 100 ;milliseconds
 SnapshotFlashTransparency := 128    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
-ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd-HHmmss"
+ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd_HHmmss"
 SmallDelta := 10  ; the smallest screenshot that can be taken is 10x10 by pixel
 GetConfig(A_ScriptDir "\.config.ini")
 is_Capture_Continue := false
@@ -436,17 +436,17 @@ ContinuousCapture()
     }
 
     StartTime := A_TickCount
-    Path := EnsureFolderExists(ScreenshotPath)
     CaptureCount := 0
 
     ; Create stop button GUI
     stopGui := ShowStopCaptureButton()
 
+    Path := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
     while(is_Capture_Continue)
     {
-        sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous) . Format("_{:05}.png", CaptureCount)
-        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:=false)
         CaptureCount := CaptureCount + 1
+        sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
+        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:=false)
         Sleep 1000
     }
     is_Capture_Continue := false
