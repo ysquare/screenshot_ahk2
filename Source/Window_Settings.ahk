@@ -140,6 +140,7 @@ lync.settings := CyclicArray(
 
 explorer := BorderSetting()
 explorer.settings := CyclicArray(
+    {l:8, t:0, r:8, b:8, ratio:0, extended_cut:0},
     {l:10, t:10, r:10, b: 10, ratio: 0, extended_cut:0},
     {l:30, t:10, r:50, b: 50, ratio: 0, extended_cut:0},
     {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
