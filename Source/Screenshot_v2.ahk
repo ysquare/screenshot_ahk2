@@ -446,7 +446,8 @@ ContinuousCapture()
     {
         CaptureCount := CaptureCount + 1
         sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
-        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:=false)
+        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, 
+            showConfirm:= (CaptureCount <=3) || mod(CaptureCount, 60) = 0)
         Sleep 1000
     }
     is_Capture_Continue := false
