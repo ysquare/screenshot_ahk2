@@ -17,3 +17,12 @@ SendMode "Input"
     RepeatLastCapture()
 }
 
+^#t::
+{
+    ContinuousCapture()
+}
+
+^#+t::
+{
+    StopContinuousCapture()
+}

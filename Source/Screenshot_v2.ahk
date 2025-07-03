@@ -32,8 +32,10 @@ SnapshotFlashColor := "Gray"
 SnapshotFlashDuration := 100 ;milliseconds
 SnapshotFlashTransparency := 128    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
+ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd-HHmmss"
 SmallDelta := 10  ; the smallest screenshot that can be taken is 10x10 by pixel
 GetConfig(A_ScriptDir "\.config.ini")
+is_Capture_Continue := false
 
 GetConfig(configFile)
 {
@@ -55,7 +57,7 @@ global selectX, selectY, selectR, selectB
 CoordMode "Mouse", "Screen"
 DetectHiddenWindows True
 
-CaptureScreenRegion(&region, sFilename:="",toClipboard:=False)
+CaptureScreenRegion(&region, sFilename:="",toClipboard:=False,showConfirm:=true)
 {
     if ( sFilename!="" || toClipboard )  ; either of the options should be true to proceed
     {
@@ -81,7 +83,7 @@ CaptureScreenRegion(&region, sFilename:="",toClipboard:=False)
             Gdip_Shutdown(pToken)
 
             ; display a confirmation splash if screenshot succeeds
-            if FileExist(sFilename)
+            if showConfirm && FileExist(sFilename)
                 ShowRegion(region)
         }
     }
@@ -398,7 +400,7 @@ SelectRegionToCapture()
 
     StartTime := A_TickCount
     sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
-    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true)
+    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
     log "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 
@@ -416,7 +418,76 @@ RepeatLastCapture()
 
     StartTime := A_TickCount
     sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
-    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true)
+    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
     log "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
+}
+
+ContinuousCapture()
+{
+    global captureRegion
+    global is_Capture_Continue
+    is_Capture_Continue := true
+    if !IsSet(captureRegion)
+    {
+        MonitorGet GetMonitorIndex(), &captureX, &captureY, &captureR, &captureB
+        captureRegion := RegionSetting()
+        captureRegion.SetRegionByPos(captureX, captureY, captureR, captureB)
+    }
+
+    StartTime := A_TickCount
+    Path := EnsureFolderExists(ScreenshotPath)
+    CaptureCount := 0
+
+    ; Create stop button GUI
+    stopGui := ShowStopCaptureButton()
+
+    while(is_Capture_Continue)
+    {
+        sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous) . Format("_{:05}.png", CaptureCount)
+        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:=false)
+        CaptureCount := CaptureCount + 1
+        Sleep 1000
+    }
+    is_Capture_Continue := false
+    if IsSet(stopGui)
+        stopGui.Destroy
+    log "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
+    return
+}
+
+ShowStopCaptureButton()
+{
+    global is_Capture_Continue
+    btnWidth := 160, btnHeight := 40
+    padding := 40
+    guiWidth := btnWidth + 2 * padding
+    guiHeight := btnHeight + 2 * padding
+    btnText := "Exit Capture"
+    btnTransparency := 64
+
+    stopGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound -DPIScale")
+    stopGui.SetFont("s12 c0x888888 bold", "Segoe UI")
+    btn := stopGui.Add("Button", "x" padding " y" padding " w" btnWidth " h" btnHeight, btnText)
+    btn.OnEvent("Click", (*) => StopContinuousCapture(stopGui))
+
+    ; 允许拖动整个窗口
+    OnMessage(0x201, WM_LBUTTONDOWN)
+    WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
+        PostMessage 0xA1, 2
+    }
+
+    x := A_ScreenWidth - guiWidth - 60
+    y := A_ScreenHeight - guiHeight - 200
+    stopGui.Show("x" x " y" y " w" guiWidth " h" guiHeight)
+    WinSetTransparent(btnTransparency, stopGui)
+    return stopGui
+}
+
+StopContinuousCapture(stopGui?)
+{
+    global is_Capture_Continue
+    is_Capture_Continue := false
+    if IsSet(stopGui) && stopGui
+        stopGui.Destroy()
 }
