@@ -106,6 +106,10 @@ Class BorderSetting
 }
 
 DefaultBorder := BorderSetting()
+DefaultBorder.settings := CyclicArray(
+    {l:8, t:0, r:8, b:8, ratio:0, extended_cut:0},
+    {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
+)
 
 zoom := BorderSetting()
 zoom.settings := CyclicArray(
