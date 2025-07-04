@@ -35,7 +35,7 @@ ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
 ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd_HHmmss"
 SmallDelta := 10  ; the smallest screenshot that can be taken is 10x10 by pixel
 
-captureIntervalMs := 200 ; Default interval in milliseconds
+captureIntervalMs := 1000 ; Default interval in milliseconds, if not overridden by .config.ini, set it to 1s.
 BitmapCompareThreshold := 1 ; the threshold for bitmap comparison, typically between 1 and 10, can be float number
 BitmapCompareThumbnailSize := 8 ; the size of the thumbnail for bitmap comparison
 
@@ -46,7 +46,8 @@ GetConfig(configFile)
     {
         global LogPath := A_WorkingDir "\" IniRead(configFile , "Path" , "LogPath")
         global ScreenshotPath := IniRead(configFile, "Path", "ScreenshotPath")
-
+        global captureIntervalMs := IniRead(configFile, "Path", "captureIntervalMs")
+        global BitmapCompareThreshold := IniRead(configFile, "Path", "BitmapCompareThreshold")
     } Catch Error as err
     {
         MsgBox "Error Getting Configuartion, please check", "Error", "iconx"
