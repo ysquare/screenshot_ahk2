@@ -34,9 +34,12 @@ SnapshotFlashTransparency := 128    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
 ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd_HHmmss"
 SmallDelta := 10  ; the smallest screenshot that can be taken is 10x10 by pixel
-GetConfig(A_ScriptDir "\.config.ini")
-is_Capture_Continue := false
 
+captureIntervalMs := 200 ; Default interval in milliseconds
+BitmapCompareThreshold := 1 ; the threshold for bitmap comparison, typically between 1 and 10, can be float number
+BitmapCompareThumbnailSize := 8 ; the size of the thumbnail for bitmap comparison
+
+GetConfig(A_ScriptDir "\.config.ini")
 GetConfig(configFile)
 {
     Try
@@ -57,36 +60,73 @@ global selectX, selectY, selectR, selectB
 CoordMode "Mouse", "Screen"
 DetectHiddenWindows True
 
-CaptureScreenRegion(&region, sFilename:="",toClipboard:=False,showConfirm:=true)
+; --- GDI+ global session management ---
+global g_pToken := 0
+global lastBitmap := 0
+
+; Start GDI+ at script start
+if !g_pToken {
+    g_pToken := Gdip_Startup()
+    if !g_pToken {
+        MsgBox "Failed to start GDI+"
+        ExitApp
+    }
+}
+
+; Ensure cleanup at script exit
+OnExit(*) {
+    global lastBitmap, g_pToken
+    if IsSet(lastBitmap) && lastBitmap {
+        Gdip_DisposeImage(lastBitmap)
+        lastBitmap := 0
+    }
+    if g_pToken {
+        Gdip_Shutdown(g_pToken)
+        g_pToken := 0
+    }
+}
+
+CaptureScreenRegion(&region, sFilename:="", toClipboard:=False, showConfirm:=true, deduplicate:=false)
 {
+    global lastBitmap
     if ( sFilename!="" || toClipboard )  ; either of the options should be true to proceed
     {
         monitor_index := GetMonitorIndex(region)  ; todo: change GetMonitorIndex()
         if monitor_index > 0  ; only do capture when window is in normal status, not when it's minimized or hidden
         {
-            ; start GDI and do the screen capture
-            pToken := Gdip_Startup()
-            if !pToken
-            {
-                MsgBox "Gdip_Startup error, exiting the app", "Error", "iconx"
-                ExitApp 1
-            }
-
+            ; GDI+ is already started globally
             pBitmap := Gdip_BitmapFromScreen(region.ScreenString(), 0x40cc0020) ; always getting bitmap from screen, not from window
+            if deduplicate && (lastBitmap != 0) && CompareBitmapsByThumbnail(pBitmap, lastBitmap) {
+                Gdip_DisposeImage(pBitmap)
+                return 0 ; skip save, duplicate
+            }
             if toClipboard
                 Gdip_SetBitmapToClipboard(pBitmap)
             if sFilename
                 Gdip_SaveBitmapToFile(pBitmap, updateFilename(&sFilename))
 
-            DeleteObject(pBitmap)
+            if lastBitmap {
+                Gdip_DisposeImage(lastBitmap)
+                lastBitmap := 0
+            }
+            if !pBitmap || pBitmap = -1
+            {
+                MsgBox "Failed to capture screen! pBitmap is invalid."
+                return 0
+            }
+            width := Gdip_GetImageWidth(pBitmap)
+            height := Gdip_GetImageHeight(pBitmap)
+            lastBitmap := Gdip_CloneBitmapArea(pBitmap, 0, 0, width, height)
+
             Gdip_DisposeImage(pBitmap)
-            Gdip_Shutdown(pToken)
 
             ; display a confirmation splash if screenshot succeeds
             if showConfirm && FileExist(sFilename)
                 ShowRegion(region)
+            return 1 ; indicate saved
         }
     }
+    return 0
 }
 
 ; Need this to avoid duplicated filename, use the following procedure to find the
@@ -393,7 +433,7 @@ selectedRegion := RegionSetting()
 
 SelectRegionToCapture()
 {
-    global selectedRegion, captureRegion
+    global selectedRegion, captureRegionguiTransparency
     if (SelectRegion(&selectedRegion) < 0)
 		return
     global captureRegion := selectedRegion.Clone()
@@ -423,17 +463,51 @@ RepeatLastCapture()
     return
 }
 
-global captureIntervalMs := 1000 ; Default interval in milliseconds
-global captureTimerActive := false
-global isCaptureInProgress := false
+global isCaptureContinue := false ; if a continuous capture is running
+global isCaptureInProgress := false ; if a single capture is running
+global captureTimerActive := false ; if a capture timer is active
+global lastCaptureBitmap := 0 ; save the last captured bitmap for comparison
 
 global stopGui
+global Path := "" ; the path to save screenshots
 
-global Path := ""
+; 比较两个GDI+ Bitmap对象的缩略图相似度. TODO: 需要优化, lastBitmap不用每次都resize，可以存一个thumbnail重复比较
+CompareBitmapsByThumbnail(pBitmap1, pBitmap2, thumbW := BitmapCompareThumbnailSize, thumbH := BitmapCompareThumbnailSize, threshold := BitmapCompareThreshold) {
+    if !pBitmap1 || !pBitmap2
+        return false
+    pThumb1 := Gdip_ResizeBitmap(pBitmap1, thumbW, thumbH)
+    pThumb2 := Gdip_ResizeBitmap(pBitmap2, thumbW, thumbH)
+    arr1 := GetGrayArrayFromBitmap(pThumb1, thumbW, thumbH)
+    arr2 := GetGrayArrayFromBitmap(pThumb2, thumbW, thumbH)
+    Gdip_DisposeImage(pThumb1), Gdip_DisposeImage(pThumb2)
+    diff := 0
+    for i, v in arr1
+        diff += Abs(v - arr2[i])
+    avgDiff := diff / (thumbW * thumbH)
+    return avgDiff < threshold 
+}
+
+GetGrayArrayFromBitmap(pBitmap, w, h) {
+    arr := []
+    Loop h {
+        y := A_Index - 1
+        Loop w {
+            x := A_Index - 1
+            ARGB := Gdip_GetPixel(pBitmap, x, y)
+            r := (ARGB >> 16) & 0xFF
+            g := (ARGB >> 8) & 0xFF
+            b := ARGB & 0xFF
+            gray := (r*0.299 + g*0.587 + b*0.114)
+            arr.Push(gray)
+        }
+    }
+    return arr
+}
+
 
 DoCapture(*) {
-    global is_Capture_Continue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, captureTimerActive, isCaptureInProgress
-    if !is_Capture_Continue {
+    global isCaptureContinue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, captureTimerActive, isCaptureInProgress
+    if !isCaptureContinue {
         SetTimer(DoCapture, 0)
         captureTimerActive := false
         return
@@ -446,9 +520,10 @@ DoCapture(*) {
     try {
         CaptureCount += 1
         sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
-        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, 
-            showConfirm:= (CaptureCount <=3) || mod(CaptureCount, 60) = 0)
-        writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
+        ret := CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:= true || (CaptureCount <=3) || mod(CaptureCount, 60) = 0, deduplicate:=true)
+        if ret {
+            writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
+        }
     } finally {
         isCaptureInProgress := false
     }
@@ -457,8 +532,12 @@ DoCapture(*) {
 
 ContinuousCapture()
 {
-    global captureRegion, is_Capture_Continue, captureIntervalMs, stopGui
-    is_Capture_Continue := true
+    global captureRegion, isCaptureContinue, stopGui, lastBitmap
+    if lastBitmap {
+        Gdip_DisposeImage(lastBitmap)
+        lastBitmap := 0
+    }
+    isCaptureContinue := true
     if !IsSet(captureRegion)
     {
         MonitorGet GetMonitorIndex(), &captureX, &captureY, &captureR, &captureB
@@ -468,14 +547,14 @@ ContinuousCapture()
 
     StartTime := A_TickCount
     global CaptureCount := 0
-    stopGui := ShowStopCaptureButton()
+    stopGui := ShowStopCaptureUI()
     global Path := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
     global sOutput
 
     global captureTimerActive := true
     SetTimer(DoCapture, -10) ; fire first capture immediately
 
-    while(is_Capture_Continue)
+    while(isCaptureContinue)
         Sleep 100
     SetTimer(DoCapture, 0)
     captureTimerActive := false
@@ -485,12 +564,10 @@ ContinuousCapture()
     return
 }
 
-ShowStopCaptureButton()
+ShowStopCaptureUI()
 {
-    global is_Capture_Continue
+    global isCaptureContinue
     global captureIntervalMs
-    if (!IsSet(captureIntervalMs) || !captureIntervalMs)
-        captureIntervalMs := 1000  ; 默认值
 
     btnWidth := 140, btnHeight := 40
     padding := 24
@@ -504,7 +581,7 @@ ShowStopCaptureButton()
     guiHeight := btnHeight + sliderHeight + 2 * spacing + 2 * padding
 
     btnText := "Exit Capture"
-    btnTransparency := 128
+    guiTransparency := 128
 
     ; 指数滑动参数
     minInterval := 100
@@ -560,14 +637,14 @@ ShowStopCaptureButton()
     x := A_ScreenWidth - guiWidth - 60
     y := A_ScreenHeight - guiHeight - 200
     stopGui.Show("x" x " y" y " w" guiWidth " h" guiHeight)
-    WinSetTransparent(btnTransparency, stopGui)
+    WinSetTransparent(guiTransparency, stopGui)
     return stopGui
 }
 
 StopContinuousCapture(stopGui?)
 {
-    global is_Capture_Continue
-    is_Capture_Continue := false
+    global isCaptureContinue
+    isCaptureContinue := false
     if IsSet(stopGui) && stopGui
         stopGui.Destroy()
 }

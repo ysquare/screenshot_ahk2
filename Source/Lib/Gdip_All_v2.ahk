@@ -3158,3 +3158,15 @@ WinGetRect( hwnd, &x:="", &y:="", &w:="", &h:="" ) {
 	w := NumGet(winRect,  8, "UInt") - x
 	h := NumGet(winRect, 12, "UInt") - y
 }
+
+; Gdip_ResizeBitmap: 缩放GDI+ Bitmap到指定宽高
+Gdip_ResizeBitmap(pBitmap, newW, newH) {
+    if !pBitmap
+        return 0
+    pBitmapNew := Gdip_CreateBitmap(newW, newH)
+    G := Gdip_GraphicsFromImage(pBitmapNew)
+    Gdip_SetInterpolationMode(G, 7) ; HighQualityBicubic
+    Gdip_DrawImage(G, pBitmap, 0, 0, newW, newH, 0, 0, Gdip_GetImageWidth(pBitmap), Gdip_GetImageHeight(pBitmap))
+    Gdip_DeleteGraphics(G)
+    return pBitmapNew
+}
