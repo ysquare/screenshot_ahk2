@@ -424,12 +424,30 @@ RepeatLastCapture()
 }
 
 global captureIntervalMs := 1000 ; Default interval in milliseconds
+global captureTimerActive := false
+
+global stopGui
+
+global Path := ""
+
+DoCapture(*) {
+    global is_Capture_Continue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, captureTimerActive
+    if !is_Capture_Continue {
+        SetTimer(DoCapture, 0)
+        captureTimerActive := false
+        return
+    }
+    CaptureCount += 1
+    sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
+    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, 
+        showConfirm:= true || (CaptureCount <=3) || mod(CaptureCount, 60) = 0)
+    writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
+    SetTimer(DoCapture, -captureIntervalMs)
+}
 
 ContinuousCapture()
 {
-    global captureRegion
-    global is_Capture_Continue
-    global captureIntervalMs
+    global captureRegion, is_Capture_Continue, captureIntervalMs, stopGui
     is_Capture_Continue := true
     if !IsSet(captureRegion)
     {
@@ -439,21 +457,18 @@ ContinuousCapture()
     }
 
     StartTime := A_TickCount
-    CaptureCount := 0
-
-    ; Create stop button GUI with slider
+    global CaptureCount := 0
     stopGui := ShowStopCaptureButton()
+    global Path := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
+    global sOutput
 
-    Path := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
+    global captureTimerActive := true
+    SetTimer(DoCapture, -10) ; fire first capture immediately
+
     while(is_Capture_Continue)
-    {
-        CaptureCount := CaptureCount + 1
-        sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
-        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, 
-            showConfirm:= true || (CaptureCount <=3) || mod(CaptureCount, 60) = 0)
-        Sleep captureIntervalMs
-    }
-    is_Capture_Continue := false
+        Sleep 100
+    SetTimer(DoCapture, 0)
+    captureTimerActive := false
     if IsSet(stopGui)
         stopGui.Destroy
     writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
@@ -508,7 +523,9 @@ ShowStopCaptureButton()
 
     slider.OnEvent("Change", (ctrl, *) => (
         captureIntervalMs := Round(minInterval * ((maxInterval/minInterval) ** ((ctrl.Value - sliderMin) / (sliderMax - sliderMin)))),
-        stopGui["IntervalLabel"].Text := Format("{:0.2f} s", captureIntervalMs / 1000)
+        stopGui["IntervalLabel"].Text := Format("{:0.2f} s", captureIntervalMs / 1000),
+        ; Reset timer and fire capture immediately if timer is active
+        (captureTimerActive ? (SetTimer(DoCapture, 0), DoCapture()) : "")
     ))
 
     ; 允许拖动整个窗口
