@@ -56,7 +56,6 @@ GetConfig(configFile)
 
 ; ==============================================================================
 global captureX,captureY,captureR,captureB
-global selectX, selectY, selectR, selectB
 CoordMode "Mouse", "Screen"
 DetectHiddenWindows True
 
@@ -433,7 +432,7 @@ selectedRegion := RegionSetting()
 
 SelectRegionToCapture()
 {
-    global selectedRegion, captureRegionguiTransparency
+    global selectedRegion
     if (SelectRegion(&selectedRegion) < 0)
 		return
     global captureRegion := selectedRegion.Clone()
