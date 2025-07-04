@@ -600,6 +600,13 @@ ShowStopCaptureUI()
         PostMessage 0xA1, 2
     }
 
+    ; Mouse hover transparency
+    OnMessage(0x200, WM_MOUSEMOVE)
+    WM_MOUSEMOVE(wParam, lParam, msg, hwnd) {
+        WinSetTransparent(200, stopGui)
+        SetTimer((*) => WinSetTransparent(guiTransparency, stopGui), -5000)
+    }
+
     x := A_ScreenWidth - guiWidth - 60
     y := A_ScreenHeight - guiHeight - 200
     stopGui.Show("x" x " y" y " w" guiWidth " h" guiHeight)
