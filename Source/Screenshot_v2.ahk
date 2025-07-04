@@ -504,7 +504,7 @@ GetGrayArrayFromBitmap(pBitmap, w, h) {
 }
 
 
-DoCapture(*) {
+DoCapture(ignoreDeduplicate := false) {
     global isCaptureContinue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, captureTimerActive, isCaptureInProgress
     if !isCaptureContinue {
         SetTimer(DoCapture, 0)
@@ -519,9 +519,10 @@ DoCapture(*) {
     try {
         CaptureCount += 1
         sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
-        ret := CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:= true || (CaptureCount <=3) || mod(CaptureCount, 60) = 0, deduplicate:=true)
+        ret := CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:= true || (CaptureCount <=3) || mod(CaptureCount, 60) = 0, deduplicate:=!ignoreDeduplicate)
         if ret {
-            writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
+            logMessage := ignoreDeduplicate ? "Immediate capture " : "Captured "
+            writeLog logMessage CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
         }
     } finally {
         isCaptureInProgress := false
@@ -577,9 +578,8 @@ ShowStopCaptureUI()
     labelSpacing := 16
 
     guiWidth := btnWidth + labelSpacing + intervalLabelWidth + 2 * padding
-    guiHeight := btnHeight + sliderHeight + 2 * spacing + 2 * padding
+    guiHeight := btnHeight * 2 + sliderHeight + 3 * spacing + 2 * padding
 
-    btnText := "Exit Capture"
     guiTransparency := 128
 
     ; 指数滑动参数
@@ -595,12 +595,20 @@ ShowStopCaptureUI()
         sliderPos := sliderMax
 
     stopGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound -DPIScale")
-    stopGui.SetFont("s12 c0x888888 bold", "Segoe UI")
+    stopGui.SetFont("s10 c0x888888 bold", "Segoe UI")
     y := padding
     x := padding
 
-    btn := stopGui.Add("Button", "x" x " y" y " w" btnWidth " h" btnHeight, btnText)
-    btn.OnEvent("Click", (*) => StopContinuousCapture(stopGui))
+    btnCaptureExit := stopGui.Add("Button", "x" x " y" y " w" btnWidth " h" btnHeight, "Exit Capture")
+    btnCaptureExit.OnEvent("Click", (*) => StopContinuousCapture(stopGui))
+
+    ; Add second button for immediate capture
+    y := y + btnHeight + spacing
+    btnCaptureNow := stopGui.Add("Button", "x" x " y" y " w" btnWidth " h" btnHeight, "Capture Now")
+    btnCaptureNow.OnEvent("Click", (*) => (
+        SetTimer(DoCapture, 0), ; Delete the timer
+        DoCapture(true)                ; Call DoCapture with true
+    ))
 
     ; Set smaller font for interval label
     stopGui.SetFont("s9 bold", "Segoe UI")
