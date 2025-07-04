@@ -425,23 +425,33 @@ RepeatLastCapture()
 
 global captureIntervalMs := 1000 ; Default interval in milliseconds
 global captureTimerActive := false
+global isCaptureInProgress := false
 
 global stopGui
 
 global Path := ""
 
 DoCapture(*) {
-    global is_Capture_Continue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, captureTimerActive
+    global is_Capture_Continue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, captureTimerActive, isCaptureInProgress
     if !is_Capture_Continue {
         SetTimer(DoCapture, 0)
         captureTimerActive := false
         return
     }
-    CaptureCount += 1
-    sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
-    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, 
-        showConfirm:= true || (CaptureCount <=3) || mod(CaptureCount, 60) = 0)
-    writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
+    if isCaptureInProgress {
+        ; Skip this tick if a capture is already running
+        return
+    }
+    isCaptureInProgress := true
+    try {
+        CaptureCount += 1
+        sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
+        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, 
+            showConfirm:= (CaptureCount <=3) || mod(CaptureCount, 60) = 0)
+        writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
+    } finally {
+        isCaptureInProgress := false
+    }
     SetTimer(DoCapture, -captureIntervalMs)
 }
 
@@ -482,16 +492,19 @@ ShowStopCaptureButton()
     if (!IsSet(captureIntervalMs) || !captureIntervalMs)
         captureIntervalMs := 1000  ; 默认值
 
-    btnWidth := 160, btnHeight := 40
-    padding := 30
-    sliderWidth := 260
-    labelHeight := 24
+    btnWidth := 140, btnHeight := 40
+    padding := 24
+    sliderWidth := 140
+    intervalLabelWidth := 70
     sliderHeight := 32
-    spacing := 16
-    guiWidth := Max(btnWidth, sliderWidth) + 2 * padding
-    guiHeight := btnHeight + labelHeight + sliderHeight + 3 * spacing + 2 * padding
+    spacing := 10
+    labelSpacing := 16
+
+    guiWidth := btnWidth + labelSpacing + intervalLabelWidth + 2 * padding
+    guiHeight := btnHeight + sliderHeight + 2 * spacing + 2 * padding
+
     btnText := "Exit Capture"
-    btnTransparency := 64
+    btnTransparency := 128
 
     ; 指数滑动参数
     minInterval := 100
@@ -508,18 +521,28 @@ ShowStopCaptureButton()
     stopGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound -DPIScale")
     stopGui.SetFont("s12 c0x888888 bold", "Segoe UI")
     y := padding
-    btn := stopGui.Add("Button", "x" padding " y" y " w" btnWidth " h" btnHeight, btnText)
+    x := padding
+
+    btn := stopGui.Add("Button", "x" x " y" y " w" btnWidth " h" btnHeight, btnText)
     btn.OnEvent("Click", (*) => StopContinuousCapture(stopGui))
 
-    y += btnHeight + spacing
+    ; Set smaller font for interval label
+    stopGui.SetFont("s9 bold", "Segoe UI")
+    intervalLabel := stopGui.Add(
+        "Text",
+        "x" (x + btnWidth + labelSpacing) " y" (y + btnHeight//2 - 12) " w" intervalLabelWidth " h24 vIntervalLabel +0x200 c0x444444",
+        Format("{:0.2f} s", captureIntervalMs / 1000)
+    )
+    ; Restore font for slider
     stopGui.SetFont("s10", "Segoe UI")
-    intervalText := stopGui.Add("Text", "x" padding " y" y " w" sliderWidth " h" labelHeight, "Interval (ms):")
 
-    y += labelHeight + spacing // 2
-    slider := stopGui.Add("Slider", "x" padding " y" y " w" sliderWidth " h" sliderHeight " Range" sliderMin "-" sliderMax " ToolTip vIntervalSlider", sliderPos)
-
-    y += sliderHeight + spacing // 2
-    intervalLabel := stopGui.Add("Text", "x" padding " y" y " w" sliderWidth " h" labelHeight " vIntervalLabel", Format("{:0.2f} s", captureIntervalMs / 1000))
+    y := y + btnHeight + spacing
+    stopGui.SetFont("s10", "Segoe UI")
+    slider := stopGui.Add(
+        "Slider",
+        "x" x " y" y " w" (btnWidth + labelSpacing + intervalLabelWidth) " h" sliderHeight " Range" sliderMin "-" sliderMax " ToolTip vIntervalSlider",
+        sliderPos
+    )
 
     slider.OnEvent("Change", (ctrl, *) => (
         captureIntervalMs := Round(minInterval * ((maxInterval/minInterval) ** ((ctrl.Value - sliderMin) / (sliderMax - sliderMin)))),
