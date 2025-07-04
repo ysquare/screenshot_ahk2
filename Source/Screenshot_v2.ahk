@@ -567,32 +567,15 @@ ContinuousCapture()
 ShowStopCaptureUI()
 {
     global isCaptureContinue
-    global captureIntervalMs
 
     btnWidth := 140, btnHeight := 40
     padding := 24
-    sliderWidth := 140
-    intervalLabelWidth := 70
-    sliderHeight := 32
     spacing := 10
-    labelSpacing := 16
 
-    guiWidth := btnWidth + labelSpacing + intervalLabelWidth + 2 * padding
-    guiHeight := btnHeight * 2 + sliderHeight + 3 * spacing + 2 * padding
+    guiWidth := btnWidth + 2 * padding
+    guiHeight := btnHeight * 2 + spacing + 2 * padding
 
     guiTransparency := 128
-
-    ; 指数滑动参数
-    minInterval := 100
-    maxInterval := 300000
-    sliderMin := 0
-    sliderMax := 100
-    ; 根据当前interval算初始slider位置
-    sliderPos := Round((Log(captureIntervalMs/minInterval)/Log(maxInterval/minInterval)) * (sliderMax - sliderMin) + sliderMin)
-    if sliderPos < sliderMin
-        sliderPos := sliderMin
-    if sliderPos > sliderMax
-        sliderPos := sliderMax
 
     stopGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound -DPIScale")
     stopGui.SetFont("s10 c0x888888 bold", "Segoe UI")
@@ -608,31 +591,6 @@ ShowStopCaptureUI()
     btnCaptureNow.OnEvent("Click", (*) => (
         ; SetTimer(DoCapture, 0), ; Delete the timer
         DoCapture(true)                ; Call DoCapture with true
-    ))
-
-    ; Set smaller font for interval label
-    stopGui.SetFont("s9 bold", "Segoe UI")
-    intervalLabel := stopGui.Add(
-        "Text",
-        "x" (x + btnWidth + labelSpacing) " y" (y + btnHeight//2 - 12) " w" intervalLabelWidth " h24 vIntervalLabel +0x200 c0x444444",
-        Format("{:0.2f} s", captureIntervalMs / 1000)
-    )
-    ; Restore font for slider
-    stopGui.SetFont("s10", "Segoe UI")
-
-    y := y + btnHeight + spacing
-    stopGui.SetFont("s10", "Segoe UI")
-    slider := stopGui.Add(
-        "Slider",
-        "x" x " y" y " w" (btnWidth + labelSpacing + intervalLabelWidth) " h" sliderHeight " Range" sliderMin "-" sliderMax " ToolTip vIntervalSlider",
-        sliderPos
-    )
-
-    slider.OnEvent("Change", (ctrl, *) => (
-        captureIntervalMs := Round(minInterval * ((maxInterval/minInterval) ** ((ctrl.Value - sliderMin) / (sliderMax - sliderMin)))),
-        stopGui["IntervalLabel"].Text := Format("{:0.2f} s", captureIntervalMs / 1000),
-        ; Reset timer and fire capture immediately if timer is active
-        (captureTimerActive ? (SetTimer(DoCapture, 0), DoCapture()) : "")
     ))
 
     ; 允许拖动整个窗口
