@@ -504,7 +504,7 @@ GetGrayArrayFromBitmap(pBitmap, w, h) {
 }
 
 
-DoCapture(ignoreDeduplicate := false) {
+DoCapture(immediateCapture := false) {
     global isCaptureContinue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, captureTimerActive, isCaptureInProgress
     if !isCaptureContinue {
         SetTimer(DoCapture, 0)
@@ -519,9 +519,9 @@ DoCapture(ignoreDeduplicate := false) {
     try {
         CaptureCount += 1
         sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
-        ret := CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:= true || (CaptureCount <=3) || mod(CaptureCount, 60) = 0, deduplicate:=!ignoreDeduplicate)
+        ret := CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:= true, deduplicate:=!immediateCapture)
         if ret {
-            logMessage := ignoreDeduplicate ? "Immediate capture " : "Captured "
+            logMessage := immediateCapture ? "Immediate capture " : "Captured "
             writeLog logMessage CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
         }
     } finally {
@@ -606,7 +606,7 @@ ShowStopCaptureUI()
     y := y + btnHeight + spacing
     btnCaptureNow := stopGui.Add("Button", "x" x " y" y " w" btnWidth " h" btnHeight, "Capture Now")
     btnCaptureNow.OnEvent("Click", (*) => (
-        SetTimer(DoCapture, 0), ; Delete the timer
+        ; SetTimer(DoCapture, 0), ; Delete the timer
         DoCapture(true)                ; Call DoCapture with true
     ))
 
