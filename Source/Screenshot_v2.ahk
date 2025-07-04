@@ -380,12 +380,12 @@ EnsureFolderExists(FolderPath)
     return FolderPath
 }
 
-log(text)
+writeLog(text)
 {
     global LogPath
     SplitPath(LogPath, ,&OutDir)
     EnsureFolderExists(OutDir)
-	TimeString := FormatTime(A_Now, "yyyy/MM/dd-HH:mm:ss")
+    TimeString := FormatTime(A_Now, "yyyy/MM/dd-HH:mm:ss")
     FileAppend TimeString "`t" A_ComputerName "`t" text "`n", LogPath
 }
 
@@ -401,7 +401,7 @@ SelectRegionToCapture()
     StartTime := A_TickCount
     sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
     CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
-    log "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
+    writeLog "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 
 }
@@ -419,14 +419,17 @@ RepeatLastCapture()
     StartTime := A_TickCount
     sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
     CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
-    log "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
+    writeLog "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 }
+
+global captureIntervalMs := 1000 ; Default interval in milliseconds
 
 ContinuousCapture()
 {
     global captureRegion
     global is_Capture_Continue
+    global captureIntervalMs
     is_Capture_Continue := true
     if !IsSet(captureRegion)
     {
@@ -438,7 +441,7 @@ ContinuousCapture()
     StartTime := A_TickCount
     CaptureCount := 0
 
-    ; Create stop button GUI
+    ; Create stop button GUI with slider
     stopGui := ShowStopCaptureButton()
 
     Path := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
@@ -447,30 +450,66 @@ ContinuousCapture()
         CaptureCount := CaptureCount + 1
         sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
         CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, 
-            showConfirm:= (CaptureCount <=3) || mod(CaptureCount, 60) = 0)
-        Sleep 1000
+            showConfirm:= true || (CaptureCount <=3) || mod(CaptureCount, 60) = 0)
+        Sleep captureIntervalMs
     }
     is_Capture_Continue := false
     if IsSet(stopGui)
         stopGui.Destroy
-    log "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
+    writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 }
 
 ShowStopCaptureButton()
 {
     global is_Capture_Continue
+    global captureIntervalMs
+    if (!IsSet(captureIntervalMs) || !captureIntervalMs)
+        captureIntervalMs := 1000  ; 默认值
+
     btnWidth := 160, btnHeight := 40
-    padding := 40
-    guiWidth := btnWidth + 2 * padding
-    guiHeight := btnHeight + 2 * padding
+    padding := 30
+    sliderWidth := 260
+    labelHeight := 24
+    sliderHeight := 32
+    spacing := 16
+    guiWidth := Max(btnWidth, sliderWidth) + 2 * padding
+    guiHeight := btnHeight + labelHeight + sliderHeight + 3 * spacing + 2 * padding
     btnText := "Exit Capture"
     btnTransparency := 64
 
+    ; 指数滑动参数
+    minInterval := 100
+    maxInterval := 300000
+    sliderMin := 0
+    sliderMax := 100
+    ; 根据当前interval算初始slider位置
+    sliderPos := Round((Log(captureIntervalMs/minInterval)/Log(maxInterval/minInterval)) * (sliderMax - sliderMin) + sliderMin)
+    if sliderPos < sliderMin
+        sliderPos := sliderMin
+    if sliderPos > sliderMax
+        sliderPos := sliderMax
+
     stopGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound -DPIScale")
     stopGui.SetFont("s12 c0x888888 bold", "Segoe UI")
-    btn := stopGui.Add("Button", "x" padding " y" padding " w" btnWidth " h" btnHeight, btnText)
+    y := padding
+    btn := stopGui.Add("Button", "x" padding " y" y " w" btnWidth " h" btnHeight, btnText)
     btn.OnEvent("Click", (*) => StopContinuousCapture(stopGui))
+
+    y += btnHeight + spacing
+    stopGui.SetFont("s10", "Segoe UI")
+    intervalText := stopGui.Add("Text", "x" padding " y" y " w" sliderWidth " h" labelHeight, "Interval (ms):")
+
+    y += labelHeight + spacing // 2
+    slider := stopGui.Add("Slider", "x" padding " y" y " w" sliderWidth " h" sliderHeight " Range" sliderMin "-" sliderMax " ToolTip vIntervalSlider", sliderPos)
+
+    y += sliderHeight + spacing // 2
+    intervalLabel := stopGui.Add("Text", "x" padding " y" y " w" sliderWidth " h" labelHeight " vIntervalLabel", Format("{:0.2f} s", captureIntervalMs / 1000))
+
+    slider.OnEvent("Change", (ctrl, *) => (
+        captureIntervalMs := Round(minInterval * ((maxInterval/minInterval) ** ((ctrl.Value - sliderMin) / (sliderMax - sliderMin)))),
+        stopGui["IntervalLabel"].Text := Format("{:0.2f} s", captureIntervalMs / 1000)
+    ))
 
     ; 允许拖动整个窗口
     OnMessage(0x201, WM_LBUTTONDOWN)
