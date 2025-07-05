@@ -448,18 +448,24 @@ SelectRegionToCapture()
 
 RepeatLastCapture()
 {
-    global captureRegion
-	if !IsSet(captureRegion)
-    {
-        MonitorGet GetMonitorIndex(), &captureX, &captureY, &captureR, &captureB
-        captureRegion := RegionSetting()
-        captureRegion.SetRegionByPos(captureX, captureY, captureR, captureB)
+    if isCaptureContinue {
+        DoCapture(immediateCapture:=true)
+    }
+    else{
+        global captureRegion
+        if !IsSet(captureRegion)
+        {
+            MonitorGet GetMonitorIndex(), &captureX, &captureY, &captureR, &captureB
+            captureRegion := RegionSetting()
+            captureRegion.SetRegionByPos(captureX, captureY, captureR, captureB)
+        }
+    
+        StartTime := A_TickCount
+        sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
+        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
+        writeLog "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     }
 
-    StartTime := A_TickCount
-    sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
-    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
-    writeLog "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 }
 
@@ -589,10 +595,7 @@ ShowStopCaptureUI()
     ; Add second button for immediate capture
     y := y + btnHeight + spacing
     btnCaptureNow := stopGui.Add("Button", "x" x " y" y " w" btnWidth " h" btnHeight, "Capture Now")
-    btnCaptureNow.OnEvent("Click", (*) => (
-        ; SetTimer(DoCapture, 0), ; Delete the timer
-        DoCapture(true)                ; Call DoCapture with true
-    ))
+    btnCaptureNow.OnEvent("Click", (*) => DoCapture(true))
 
     ; 允许拖动整个窗口
     OnMessage(0x201, WM_LBUTTONDOWN)
