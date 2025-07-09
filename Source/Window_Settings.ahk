@@ -287,6 +287,11 @@ Class RegionSetting
             if (this.is_focus_content && this.focus_win_id = this.win_id)
             {
                 rect := this.focus_content_element.BoundingRectangle
+                if (rect.r <= rect.l || rect.b <= rect.t)
+                {
+                    this.get_focus_content_element()
+                    rect := this.focus_content_element.BoundingRectangle
+                }
                 this.left := rect.l, this.top := rect.t, this.right := rect.r, this.bottom := rect.b
             }
             else
@@ -322,52 +327,62 @@ Class RegionSetting
         this.is_focus_content := !this.is_focus_content
         if (this.is_focus_content)
         {
-            process_name := WinGetProcessName("ahk_id " this.win_id)
-            ; if teamsHwnd title doesn't contain "Microsoft Teams", then find its parent window
-            if (process_name = "msedgewebview2.exe"){
-                if (InStr(WinGetTitle("ahk_id " this.win_id), "Microsoft Teams") = 0)
-                {
-                    teamsHwnd := DllCall("GetParent", "Ptr", this.win_id, "Ptr")
-                }
-                else
-                {
-                    teamsHwnd := this.win_id
-                }
-                ; Get the root UIA element for the Teams window
-                root := UIA.ElementFromHandle(teamsHwnd)
-                try {
-                    this.focus_content_element := root.FindFirst({Name: "共享内容视图"}).FindFirst({Type:"Menu"})
-                    this.focus_win_id := this.win_id
-                } catch {
-                    this.is_focus_content := false
-                    this.focus_content_element := 0
-                    this.focus_win_id := 0
-                }
-                return
-            }
-            else if (process_name = "WeMeetApp.exe"){
-                if (WinGetTitle("ahk_id " this.win_id) = "VideoWindow"){
-                    wemeetHwnd := DllCall("GetParent", "Ptr", this.win_id, "Ptr")
-                }
-                else{
-                    wemeetHwnd := this.win_id
-                }
-                root := UIA.ElementFromHandle(wemeetHwnd)
-                try {
-                    this.focus_content_element := root.FindFirst({Type: "Group", Name: "VideoLayoutExtensionWidget", ClassName: "QFWidget"})
-                    this.focus_win_id := this.win_id
-                } catch {
-                    this.is_focus_content := false
-                    this.focus_content_element := 0
-                    this.focus_win_id := 0
-                }
-                return
-            }
-            this.is_focus_content := false
-            this.focus_content_element := 0
-            ; Find the element with Name "共享内容视图"
-            ; Use FindFirst with a property condition
+            this.get_focus_content_element()
         }
+        else
+        {
+            this.focus_content_element := 0
+            this.focus_win_id := 0
+        }
+    }
+
+    get_focus_content_element()
+    {
+        process_name := WinGetProcessName("ahk_id " this.win_id)
+        ; if teamsHwnd title doesn't contain "Microsoft Teams", then find its parent window
+        if (process_name = "msedgewebview2.exe"){
+            if (InStr(WinGetTitle("ahk_id " this.win_id), "Microsoft Teams") = 0)
+            {
+                teamsHwnd := DllCall("GetParent", "Ptr", this.win_id, "Ptr")
+            }
+            else
+            {
+                teamsHwnd := this.win_id
+            }
+            ; Get the root UIA element for the Teams window
+            root := UIA.ElementFromHandle(teamsHwnd)
+            try {
+                this.focus_content_element := root.FindFirst({Name: "共享内容视图"}).FindFirst({Type:"Menu"})
+                this.focus_win_id := this.win_id
+            } catch {
+                this.is_focus_content := false
+                this.focus_content_element := 0
+                this.focus_win_id := 0
+            }
+            return
+        }
+        else if (process_name = "WeMeetApp.exe"){
+            if (WinGetTitle("ahk_id " this.win_id) = "VideoWindow"){
+                wemeetHwnd := DllCall("GetParent", "Ptr", this.win_id, "Ptr")
+            }
+            else{
+                wemeetHwnd := this.win_id
+            }
+            root := UIA.ElementFromHandle(wemeetHwnd)
+            try {
+                this.focus_content_element := root.FindFirst({Type: "Group", Name: "VideoLayoutExtensionWidget", ClassName: "QFWidget"})
+                this.focus_win_id := this.win_id
+            } catch {
+                this.is_focus_content := false
+                this.focus_content_element := 0
+                this.focus_win_id := 0
+            }
+            return
+        }
+        this.is_focus_content := false
+        this.focus_content_element := 0
+        ; Find the element with Name "共享内容视图"
+        ; Use FindFirst with a property condition
     }
 
     change_border(option)
