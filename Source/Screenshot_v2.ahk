@@ -323,10 +323,17 @@ AdjustConfirmWindow(aGui, &region)  ; todo: continue here
     Hotkey "Esc", Confirm_Canceled, "On"
     while !confirmState
     {
-        if WinActive(aGui) && GetKeyState("Enter")
-        {
-            confirmState := 1
-            break
+        ; Detect Shift+Enter for continuous capture, Enter for single capture
+        if WinActive(aGui) {
+            if GetKeyState("Enter") {
+                if GetKeyState("Shift") {
+                    confirmState := 2 ; Shift+Enter for continuous capture
+                    break
+                } else {
+                    confirmState := 1 ; Enter for single capture
+                    break
+                }
+            }
         }
         sleep 20
     }
@@ -434,16 +441,22 @@ selectedRegion := RegionSetting()
 SelectRegionToCapture()
 {
     global selectedRegion
-    if (SelectRegion(&selectedRegion) < 0)
-		return
+    result := SelectRegion(&selectedRegion)
+    if (result < 0)
+        return
     global captureRegion := selectedRegion.Clone()
 
+    if (result = 2) {
+        ; Shift+Enter: start continuous capture
+        ContinuousCapture()
+        return
+    }
+    ; Enter: single capture (default)
     StartTime := A_TickCount
     sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
     CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
     writeLog "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
-
 }
 
 RepeatLastCapture()
