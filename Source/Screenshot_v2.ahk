@@ -48,6 +48,7 @@ GetConfig(configFile)
         global ScreenshotPath := IniRead(configFile, "Path", "ScreenshotPath")
         global captureIntervalMs := IniRead(configFile, "Path", "captureIntervalMs")
         global BitmapCompareThreshold := IniRead(configFile, "Path", "BitmapCompareThreshold")
+        global IsShowStopCaptureUI := IniRead(configFile, "Path", "IsShowStopCaptureUI", 0)
     } Catch Error as err
     {
         MsgBox "Error Getting Configuartion, please check", "Error", "iconx"
@@ -440,6 +441,13 @@ selectedRegion := RegionSetting()
 
 SelectRegionToCapture()
 {
+    ; Safety: Ensure all capture timers are stopped and no capture is in progress
+    SetTimer(DoCapture, 0)
+    global isCaptureContinue := false
+    global captureTimerActive := false
+    while isCaptureInProgress
+        Sleep 10
+
     global selectedRegion
     result := SelectRegion(&selectedRegion)
     if (result < 0)
@@ -567,7 +575,9 @@ ContinuousCapture()
 
     StartTime := A_TickCount
     global CaptureCount := 0
-    stopGui := ShowStopCaptureUI()
+    global IsShowStopCaptureUI
+    if IsShowStopCaptureUI
+        stopGui := ShowStopCaptureUI()
     global Path := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
     global sOutput
 
@@ -578,8 +588,12 @@ ContinuousCapture()
         Sleep 100
     SetTimer(DoCapture, 0)
     captureTimerActive := false
-    if IsSet(stopGui)
-        stopGui.Destroy
+    ; Properly destroy stopGui and remove message hook
+    if IsSet(stopGui) && stopGui {
+        stopGui.Destroy()
+        stopGui := ''
+        OnMessage(0x201, WM_LBUTTONDOWN, 0)
+    }
     writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 }
@@ -612,9 +626,6 @@ ShowStopCaptureUI()
 
     ; 允许拖动整个窗口
     OnMessage(0x201, WM_LBUTTONDOWN)
-    WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
-        PostMessage 0xA1, 2
-    }
 
     x := A_ScreenWidth - guiWidth - 60
     y := A_ScreenHeight - guiHeight - 200
@@ -629,4 +640,9 @@ StopContinuousCapture(stopGui?)
     isCaptureContinue := false
     if IsSet(stopGui) && stopGui
         stopGui.Destroy()
+}
+
+; --- Top-level WM_LBUTTONDOWN handler for draggable GUIs ---
+WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
+    PostMessage 0xA1, 2
 }
