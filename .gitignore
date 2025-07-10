@@ -1,2 +1,7 @@
 Prompts/*
 Source/Logs/*
+Source/Try/*
+
+# Ignore build and binary directories
+Source/CaptureCpp/build/
+Source/CaptureCpp/bin/
