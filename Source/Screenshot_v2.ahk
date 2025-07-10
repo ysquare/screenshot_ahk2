@@ -442,9 +442,8 @@ selectedRegion := RegionSetting()
 SelectRegionToCapture()
 {
     ; Safety: Ensure all capture timers are stopped and no capture is in progress
-    SetTimer(DoCapture, 0)
-    global isCaptureContinue := false
-    global captureTimerActive := false
+    StopContinuousCapture() ; Ensure any previous session is stopped before starting a new one
+    global isCaptureInProgress
     while isCaptureInProgress
         Sleep 10
 
@@ -456,7 +455,7 @@ SelectRegionToCapture()
 
     if (result = 2) {
         ; Shift+Enter: start continuous capture
-        ContinuousCapture()
+        StartContinuousCapture()
         return
     }
     ; Enter: single capture (default)
@@ -492,7 +491,6 @@ RepeatLastCapture()
 
 global isCaptureContinue := false ; if a continuous capture is running
 global isCaptureInProgress := false ; if a single capture is running
-global captureTimerActive := false ; if a capture timer is active
 global lastCaptureBitmap := 0 ; save the last captured bitmap for comparison
 
 global stopGui
@@ -533,10 +531,9 @@ GetGrayArrayFromBitmap(pBitmap, w, h) {
 
 
 DoCapture(immediateCapture := false) {
-    global isCaptureContinue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, captureTimerActive, isCaptureInProgress
+    global isCaptureContinue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, isCaptureInProgress
     if !isCaptureContinue {
-        SetTimer(DoCapture, 0)
-        captureTimerActive := false
+        StopContinuousCapture() ; Ensure cleanup if capture is stopped
         return
     }
     if isCaptureInProgress {
@@ -558,7 +555,7 @@ DoCapture(immediateCapture := false) {
     SetTimer(DoCapture, -captureIntervalMs)
 }
 
-ContinuousCapture()
+StartContinuousCapture()
 {
     global captureRegion, isCaptureContinue, stopGui, lastBitmap
     if lastBitmap {
@@ -581,20 +578,8 @@ ContinuousCapture()
     global Path := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
     global sOutput
 
-    global captureTimerActive := true
     SetTimer(DoCapture, -10) ; fire first capture immediately
 
-    while(isCaptureContinue)
-        Sleep 100
-    SetTimer(DoCapture, 0)
-    captureTimerActive := false
-    ; Properly destroy stopGui and remove message hook
-    if IsSet(stopGui) && stopGui {
-        stopGui.Destroy()
-        stopGui := ''
-        OnMessage(0x201, WM_LBUTTONDOWN, 0)
-    }
-    writeLog "Captured " CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
     return
 }
 
@@ -617,7 +602,7 @@ ShowStopCaptureUI()
     x := padding
 
     btnCaptureExit := stopGui.Add("Button", "x" x " y" y " w" btnWidth " h" btnHeight, "Exit Capture")
-    btnCaptureExit.OnEvent("Click", (*) => StopContinuousCapture(stopGui))
+    btnCaptureExit.OnEvent("Click", (*) => StopContinuousCapture())
 
     ; Add second button for immediate capture
     y := y + btnHeight + spacing
@@ -634,12 +619,15 @@ ShowStopCaptureUI()
     return stopGui
 }
 
-StopContinuousCapture(stopGui?)
-{
-    global isCaptureContinue
+StopContinuousCapture() {
+    global isCaptureContinue, stopGui
     isCaptureContinue := false
-    if IsSet(stopGui) && stopGui
+    SetTimer(DoCapture, 0)
+    if IsSet(stopGui) && stopGui {
         stopGui.Destroy()
+        stopGui := ''
+    }
+    OnMessage(0x201, WM_LBUTTONDOWN, 0) ; Remove message handler
 }
 
 ; --- Top-level WM_LBUTTONDOWN handler for draggable GUIs ---

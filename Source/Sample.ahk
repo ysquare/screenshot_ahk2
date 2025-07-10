@@ -19,7 +19,7 @@ SendMode "Input"
 
 ^#t::
 {
-    ContinuousCapture()
+    StartContinuousCapture()
 }
 
 ^#+t::
