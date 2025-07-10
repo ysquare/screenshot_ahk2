@@ -120,12 +120,11 @@ You can start a continuous capture session in two ways:
 
 ```ini
 [Path]
-LogPath=Source/Logs/log.txt
-ScreenshotPath=C:/Users/YourName/Pictures/Screenshots
-captureIntervalMs=1000
-
-[Options]
-BitmapCompareThreshold=1.5
+LogPath = "Logs\log.txt"
+ScreenshotPath = "C:\Screenshots\" 
+captureIntervalMs = 200
+BitmapCompareThreshold = 1
+IsShowStopCaptureUI = 1
 ```
 
 Adjust the paths and options as needed for your environment.
