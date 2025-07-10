@@ -33,6 +33,7 @@ SnapshotFlashDuration := 100 ;milliseconds
 SnapshotFlashTransparency := 128    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
 ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd-HHmmss"
+ScreenshotFolderTemplate := "Screen yyyyMMdd-HHmmss"
 SmallDelta := 10  ; the smallest screenshot that can be taken is 10x10 by pixel
 
 captureIntervalMs := 1000 ; Default interval in milliseconds, if not overridden by .config.ini, set it to 1s.
@@ -581,7 +582,7 @@ StartContinuousCapture()
     global IsShowStopCaptureUI
     if IsShowStopCaptureUI
         stopGui := ShowStopCaptureUI()
-    global ContinuousCapturePath := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
+    global ContinuousCapturePath := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFolderTemplate))
     SetTimer(DoCapture, -10) ; fire first capture immediately
     return
 }
