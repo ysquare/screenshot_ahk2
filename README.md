@@ -122,7 +122,9 @@ You can start a continuous capture session in two ways:
 [Path]
 LogPath = "Logs\log.txt"
 ScreenshotPath = "C:\Screenshots\" 
-captureIntervalMs = 200
+
+[Capture]
+CaptureIntervalMs = 200
 BitmapCompareThreshold = 1
 IsShowStopCaptureUI = 1
 ```

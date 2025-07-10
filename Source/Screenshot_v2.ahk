@@ -46,9 +46,9 @@ GetConfig(configFile)
     {
         global LogPath := A_WorkingDir "\" IniRead(configFile , "Path" , "LogPath")
         global ScreenshotPath := IniRead(configFile, "Path", "ScreenshotPath")
-        global captureIntervalMs := IniRead(configFile, "Path", "captureIntervalMs")
-        global BitmapCompareThreshold := IniRead(configFile, "Path", "BitmapCompareThreshold")
-        global IsShowStopCaptureUI := IniRead(configFile, "Path", "IsShowStopCaptureUI", 0)
+        global captureIntervalMs := IniRead(configFile, "Capture", "CaptureIntervalMs")
+        global BitmapCompareThreshold := IniRead(configFile, "Capture", "BitmapCompareThreshold")
+        global IsShowStopCaptureUI := IniRead(configFile, "Capture", "IsShowStopCaptureUI", 0)
     } Catch Error as err
     {
         MsgBox "Error Getting Configuartion, please check", "Error", "iconx"
