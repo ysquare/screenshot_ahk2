@@ -442,7 +442,10 @@ selectedRegion := RegionSetting()
 SelectRegionToCapture()
 {
     ; Safety: Ensure all capture timers are stopped and no capture is in progress
-    StopContinuousCapture() ; Ensure any previous session is stopped before starting a new one
+    global isCaptureContinue
+    if isCaptureContinue {
+        StopContinuousCapture()
+    }
     global isCaptureInProgress
     while isCaptureInProgress
         Sleep 10
@@ -558,6 +561,9 @@ DoCapture(immediateCapture := false) {
 StartContinuousCapture()
 {
     global captureRegion, isCaptureContinue, stopGui, lastBitmap
+    if isCaptureContinue {
+        StopContinuousCapture()
+    }
     if lastBitmap {
         Gdip_DisposeImage(lastBitmap)
         lastBitmap := 0
