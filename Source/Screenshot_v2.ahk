@@ -32,7 +32,7 @@ SnapshotFlashColor := "Gray"
 SnapshotFlashDuration := 100 ;milliseconds
 SnapshotFlashTransparency := 128    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
-ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd_HHmmss"
+ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd-HHmmss"
 SmallDelta := 10  ; the smallest screenshot that can be taken is 10x10 by pixel
 
 captureIntervalMs := 1000 ; Default interval in milliseconds, if not overridden by .config.ini, set it to 1s.
@@ -45,7 +45,10 @@ GetConfig(configFile)
     Try
     {
         global LogPath := A_WorkingDir "\" IniRead(configFile , "Path" , "LogPath")
-        global ScreenshotPath := IniRead(configFile, "Path", "ScreenshotPath")
+        SplitPath(LogPath, ,&OutDir)
+        EnsureFolderExists(OutDir)
+
+        global ScreenshotPath := EnsureFolderExists(IniRead(configFile, "Path", "ScreenshotPath"))
         global captureIntervalMs := IniRead(configFile, "Capture", "CaptureIntervalMs")
         global BitmapCompareThreshold := IniRead(configFile, "Capture", "BitmapCompareThreshold")
         global IsShowStopCaptureUI := IniRead(configFile, "Capture", "IsShowStopCaptureUI", 0)
@@ -432,12 +435,23 @@ writeLog(text)
 {
     global LogPath
     SplitPath(LogPath, ,&OutDir)
-    EnsureFolderExists(OutDir)
     TimeString := FormatTime(A_Now, "yyyy/MM/dd-HH:mm:ss")
     FileAppend TimeString "`t" A_ComputerName "`t" text "`n", LogPath
 }
 
 selectedRegion := RegionSetting()
+
+; --- Helper for capture and logging ---
+CaptureAndLog(region, toClipboard, showConfirm, deduplicate, outputPathTemplate, logPrefix := "Captured", absolutePath := "") {
+    StartTime := A_TickCount
+    basePath := absolutePath != "" ? absolutePath : ScreenshotPath
+    sOutput := basePath . FormatTime(A_Now, outputPathTemplate)
+    ret := CaptureScreenRegion(&region, sFilename:=sOutput, toClipboard, showConfirm, deduplicate)
+    if ret {
+        writeLog logPrefix " to " sOutput " (" region.ScreenString() ") in " A_TickCount-StartTime "ms."
+    }
+    return ret
+}
 
 SelectRegionToCapture()
 {
@@ -462,10 +476,7 @@ SelectRegionToCapture()
         return
     }
     ; Enter: single capture (default)
-    StartTime := A_TickCount
-    sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
-    CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
-    writeLog "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
+    CaptureAndLog(captureRegion, true, true, false, ScreenshotFilenameTemplate)
     return
 }
 
@@ -482,13 +493,8 @@ RepeatLastCapture()
             captureRegion := RegionSetting()
             captureRegion.SetRegionByPos(captureX, captureY, captureR, captureB)
         }
-    
-        StartTime := A_TickCount
-        sOutput := EnsureFolderExists(ScreenshotPath) . FormatTime(A_Now, ScreenshotFilenameTemplate)
-        CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=true, showConfirm:=true)
-        writeLog "Captured to " sOutput " (" captureRegion.ScreenString() ") in " A_TickCount-StartTime "ms."
+        CaptureAndLog(captureRegion, true, true, false, ScreenshotFilenameTemplate)
     }
-
     return
 }
 
@@ -497,7 +503,7 @@ global isCaptureInProgress := false ; if a single capture is running
 global lastCaptureBitmap := 0 ; save the last captured bitmap for comparison
 
 global stopGui
-global Path := "" ; the path to save screenshots
+global ContinuousCapturePath := "" ; the path to save screenshots
 
 ; 比较两个GDI+ Bitmap对象的缩略图相似度. TODO: 需要优化, lastBitmap不用每次都resize，可以存一个thumbnail重复比较
 CompareBitmapsByThumbnail(pBitmap1, pBitmap2, thumbW := BitmapCompareThumbnailSize, thumbH := BitmapCompareThumbnailSize, threshold := BitmapCompareThreshold) {
@@ -534,7 +540,7 @@ GetGrayArrayFromBitmap(pBitmap, w, h) {
 
 
 DoCapture(immediateCapture := false) {
-    global isCaptureContinue, captureRegion, CaptureCount, Path, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, sOutput, isCaptureInProgress
+    global isCaptureContinue, captureRegion, CaptureCount, ContinuousCapturePath, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, isCaptureInProgress
     if !isCaptureContinue {
         StopContinuousCapture() ; Ensure cleanup if capture is stopped
         return
@@ -546,12 +552,8 @@ DoCapture(immediateCapture := false) {
     isCaptureInProgress := true
     try {
         CaptureCount += 1
-        sOutput := Path . FormatTime(A_Now, ScreenshotFilenameTemplate) . Format("_{:05}.png", CaptureCount)
-        ret := CaptureScreenRegion(&captureRegion, sFilename:=sOutput, toClipboard:=false, showConfirm:= true, deduplicate:=!immediateCapture)
-        if ret {
-            logMessage := immediateCapture ? "Immediate capture " : "Captured "
-            writeLog logMessage CaptureCount " Screenshots to " sOutput " (" captureRegion.ScreenString() ")"
-        }
+        outputTemplate := ScreenshotFilenameTemplate_Continuous . Format("_{:05}.png",CaptureCount)
+        CaptureAndLog(captureRegion, false, true, !immediateCapture, outputTemplate, "Captured", ContinuousCapturePath)
     } finally {
         isCaptureInProgress := false
     }
@@ -575,17 +577,12 @@ StartContinuousCapture()
         captureRegion := RegionSetting()
         captureRegion.SetRegionByPos(captureX, captureY, captureR, captureB)
     }
-
-    StartTime := A_TickCount
     global CaptureCount := 0
     global IsShowStopCaptureUI
     if IsShowStopCaptureUI
         stopGui := ShowStopCaptureUI()
-    global Path := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
-    global sOutput
-
+    global ContinuousCapturePath := EnsureFolderExists(ScreenshotPath . FormatTime(A_Now, ScreenshotFilenameTemplate_Continuous))
     SetTimer(DoCapture, -10) ; fire first capture immediately
-
     return
 }
 
