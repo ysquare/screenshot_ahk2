@@ -67,7 +67,10 @@ DetectHiddenWindows True
 
 ; --- GDI+ global session management ---
 global g_pToken := 0
-global lastBitmap := 0
+global lastBitmap := 0 ; old: save the last captured bitmap for comparison
+; New: cache the last thumbnail and its grayscale array for deduplication
+global lastThumbBitmap := 0
+global lastThumbGrayArr := 0
 
 ; Start GDI+ at script start
 if !g_pToken {
@@ -91,9 +94,38 @@ OnExit(*) {
     }
 }
 
+; --- Modular thumbnail and comparison helpers ---
+CreateThumbnail(pBitmap) {
+    global BitmapCompareThumbnailSize
+    return Gdip_ResizeBitmap(pBitmap, BitmapCompareThumbnailSize, BitmapCompareThumbnailSize)
+}
+
+CompareGrayArrays(arr1, arr2, threshold) {
+    diff := 0
+    for i, v in arr1
+        diff += Abs(v - arr2[i])
+    avgDiff := diff / arr1.Length
+    return avgDiff < threshold
+}
+
+IsBitmapChangedAndUpdate(pBitmap) {
+    global lastThumbGrayArr, BitmapCompareThumbnailSize, BitmapCompareThreshold
+    pThumb := CreateThumbnail(pBitmap)
+    arr := GetGrayArrayFromBitmap(pThumb, BitmapCompareThumbnailSize, BitmapCompareThumbnailSize)
+    Gdip_DisposeImage(pThumb)
+    isDuplicate := false
+    if (lastThumbGrayArr != 0) {
+        isDuplicate := CompareGrayArrays(arr, lastThumbGrayArr, BitmapCompareThreshold)
+    }
+    if !isDuplicate {
+        lastThumbGrayArr := arr
+    }
+    return !isDuplicate
+}
+
 CaptureScreenRegion(&region, sFilename:="", toClipboard:=False, showConfirm:=true, deduplicate:=false)
 {
-    global lastBitmap
+    global lastThumbGrayArr
     if ( sFilename!="" || toClipboard )  ; either of the options should be true to proceed
     {
         monitor_index := GetMonitorIndex(region)  ; todo: change GetMonitorIndex()
@@ -101,27 +133,22 @@ CaptureScreenRegion(&region, sFilename:="", toClipboard:=False, showConfirm:=tru
         {
             ; GDI+ is already started globally
             pBitmap := Gdip_BitmapFromScreen(region.ScreenString(), 0x40cc0020) ; always getting bitmap from screen, not from window
-            if deduplicate && (lastBitmap != 0) && CompareBitmapsByThumbnail(pBitmap, lastBitmap) {
+            if deduplicate {
+                if !IsBitmapChangedAndUpdate(pBitmap) {
                 Gdip_DisposeImage(pBitmap)
                 return 0 ; skip save, duplicate
+            }
             }
             if toClipboard
                 Gdip_SetBitmapToClipboard(pBitmap)
             if sFilename
                 Gdip_SaveBitmapToFile(pBitmap, updateFilename(&sFilename))
 
-            if lastBitmap {
-                Gdip_DisposeImage(lastBitmap)
-                lastBitmap := 0
-            }
             if !pBitmap || pBitmap = -1
             {
                 MsgBox "Failed to capture screen! pBitmap is invalid."
                 return 0
             }
-            width := Gdip_GetImageWidth(pBitmap)
-            height := Gdip_GetImageHeight(pBitmap)
-            lastBitmap := Gdip_CloneBitmapArea(pBitmap, 0, 0, width, height)
 
             Gdip_DisposeImage(pBitmap)
 
