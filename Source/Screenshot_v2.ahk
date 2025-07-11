@@ -29,12 +29,13 @@ SelectionTransparency := 64   ; 0-255
 ConfirmColor := 0x0078D7 ; this is the same color with default window title bar
 ConfirmTransparency := 128
 SnapshotFlashColor := "Gray"
-SnapshotFlashDuration := 100 ;milliseconds
-SnapshotFlashTransparency := 128    ; 0-255
+SnapshotFlashDuration := 50 ;milliseconds
+SnapshotFlashTransparency := 64    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
 ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd-HHmmss"
 ScreenshotFolderTemplate := "Screen yyyyMMdd-HHmmss"
-SmallDelta := 20  ; the smallest screenshot that can be taken is 10x10 by pixel
+SmallDelta := 30  ; the smallest screenshot that can be taken is 10x10 by pixel
+LogIntervalMs := 1000 ; the interval for logging, in milliseconds
 
 captureIntervalMs := 1000 ; Default interval in milliseconds, if not overridden by .config.ini, set it to 1s.
 BitmapCompareThreshold := 1 ; the threshold for bitmap comparison, typically between 1 and 10, can be float number
@@ -53,6 +54,7 @@ GetConfig(configFile)
         global captureIntervalMs := IniRead(configFile, "Capture", "CaptureIntervalMs")
         global BitmapCompareThreshold := IniRead(configFile, "Capture", "BitmapCompareThreshold")
         global IsShowStopCaptureUI := IniRead(configFile, "Capture", "IsShowStopCaptureUI", 0)
+        global ShowConfirmOnContinuousCapture := IniRead(configFile, "Capture", "ShowConfirmOnContinuousCapture", 1)
     } Catch Error as err
     {
         MsgBox "Error Getting Configuartion, please check", "Error", "iconx"
@@ -84,6 +86,7 @@ if !g_pToken {
 ; Ensure cleanup at script exit
 OnExit(*) {
     global lastBitmap, g_pToken
+    FlushLogQueue()
     if IsSet(lastBitmap) && lastBitmap {
         Gdip_DisposeImage(lastBitmap)
         lastBitmap := 0
@@ -123,12 +126,18 @@ IsBitmapChangedAndUpdate(pBitmap) {
     return !isDuplicate
 }
 
-global SaveQueue := []          ; Array of {bitmap, filename, region, showConfirm, logPrefix}
+global SaveQueue := []          ; Array of {bitmap, filename, region, showConfirm, logPrefix, toClipboard}
 global IsSaveWorkerRunning := false
+global MAX_SAVE_QUEUE := 10
 
-QueueBitmapForSaving(pBitmap, sFilename, region, showConfirm, logPrefix := "Captured") {
-    global SaveQueue, IsSaveWorkerRunning
-    SaveQueue.Push({bitmap: pBitmap, filename: sFilename, region: region.Clone(), showConfirm: showConfirm, logPrefix: logPrefix})
+QueueBitmapForSaving(pBitmap, sFilename, region, showConfirm, logPrefix := "Captured", toClipboard := false) {
+    global SaveQueue, IsSaveWorkerRunning, MAX_SAVE_QUEUE
+    if SaveQueue.Length >= MAX_SAVE_QUEUE {
+        writeLog("[WARN] Save queue full, discarding capture at " . A_Now)
+        Gdip_DisposeImage(pBitmap)
+        return
+    }
+    SaveQueue.Push({bitmap: pBitmap, filename: sFilename, region: region.Clone(), showConfirm: showConfirm, logPrefix: logPrefix, toClipboard: toClipboard})
     if !IsSaveWorkerRunning {
         IsSaveWorkerRunning := true
         SetTimer(SaveBitmapWorker, 10)
@@ -145,8 +154,13 @@ SaveBitmapWorker() {
     item := SaveQueue.RemoveAt(1)
     sFilename := item.filename
     sFilename := updateFilename(&sFilename)
-    ; 2. save bitmap to file
-    Gdip_SaveBitmapToFile(item.bitmap, sFilename)
+    ; 1. copy to clipboard if requested
+    if item.toClipboard
+        Gdip_SetBitmapToClipboard(item.bitmap)
+    ; 2. save bitmap to file if filename is provided
+    if sFilename
+        Gdip_SaveBitmapToFile(item.bitmap, sFilename)
+
     Gdip_DisposeImage(item.bitmap)
     ; 3. write to log
     if item.HasOwnProp("region") && item.region
@@ -155,20 +169,24 @@ SaveBitmapWorker() {
         writeLog(item.logPrefix " to " sFilename)
     ; 4. show confirmation
     if item.showConfirm && FileExist(sFilename)
-        ShowRegion(item.region)
+        ShowCapturedRegion(item.region)
     ; Continue timer for next item
     SetTimer(SaveBitmapWorker, -10)
 }
 
 CaptureScreenRegion(&region, sFilename:="", toClipboard:=False, showConfirm:=true, deduplicate:=false)
 {
-    global lastThumbGrayArr
+    global lastThumbGrayArr, LastConfirmGui
     if ( sFilename!="" || toClipboard )  ; either of the options should be true to proceed
     {
         monitor_index := GetMonitorIndex(region)  ; todo: change GetMonitorIndex()
         if monitor_index > 0  ; only do capture when window is in normal status, not when it's minimized or hidden
         {
             ; GDI+ is already started globally
+            if showConfirm && IsSet(LastConfirmGui) && LastConfirmGui{
+                LastConfirmGui.Destroy()
+                LastConfirmGui := 0
+            }
             pBitmap := Gdip_BitmapFromScreen(region.ScreenString(), 0x40cc0020) ; always getting bitmap from screen, not from window
             if !pBitmap || pBitmap = -1
             {
@@ -181,10 +199,8 @@ CaptureScreenRegion(&region, sFilename:="", toClipboard:=False, showConfirm:=tru
                     return 0 ; skip save, duplicate
                 }
             }
-            if toClipboard
-                Gdip_SetBitmapToClipboard(pBitmap)
-            if sFilename {
-                QueueBitmapForSaving(pBitmap, sFilename, region, showConfirm)
+            if sFilename || toClipboard {
+                QueueBitmapForSaving(pBitmap, sFilename, region, showConfirm, "Captured", toClipboard)
                 ; Do NOT dispose pBitmap here! The worker will do it.
             } else {
                 Gdip_DisposeImage(pBitmap)
@@ -206,16 +222,19 @@ updateFilename(&sFilename)
     return sFilename
 }
 
-ShowRegion(region)
-{
-    global SnapshotFlashColor, SnapshotFlashTransparency, SnapshotFlashDuration
-    DetectHiddenWindows True
+global LastConfirmGui := 0
+
+ShowCapturedRegion(region) {
+    global SnapshotFlashColor, SnapshotFlashTransparency, SnapshotFlashDuration, LastConfirmGui
+    ; Destroy previous confirmation GUI if it exists
+    if IsSet(LastConfirmGui) && LastConfirmGui
+        LastConfirmGui.Destroy()
     MyGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound -DPIScale")
     MyGui.BackColor := SnapshotFlashColor
     WinSetTransparent(SnapshotFlashTransparency, MyGui)
-    MyGui.Show region.GuiString()
-    Sleep SnapshotFlashDuration
-    MyGui.Destroy
+    MyGui.Show(region.GuiString())
+    LastConfirmGui := MyGui
+    SetTimer(() => (IsSet(MyGui) && MyGui ? MyGui.Destroy() : 0), -SnapshotFlashDuration)
 }
 
 SelectRegion(&region)
@@ -493,25 +512,79 @@ EnsureFolderExists(FolderPath)
     return FolderPath
 }
 
+global LogQueue := []
+global IsLogWorkerRunning := false
+
 writeLog(text)
 {
-    global LogPath
-    SplitPath(LogPath, ,&OutDir)
+    global LogQueue, IsLogWorkerRunning
     TimeString := FormatTime(A_Now, "yyyy/MM/dd-HH:mm:ss")
-    FileAppend TimeString "`t" A_ComputerName "`t" text "`n", LogPath
+    LogQueue.Push({ts: TimeString, msg: text})
+    if !IsLogWorkerRunning {
+        IsLogWorkerRunning := true
+        SetTimer(LogWorker, 1000)
+    }
+}
+
+LogWorker() {
+    global LogQueue, IsLogWorkerRunning, LogPath
+    if LogQueue.Length = 0 {
+        IsLogWorkerRunning := false
+        SetTimer(LogWorker, 0)
+        return
+    }
+    SplitPath(LogPath, ,&OutDir)
+    attempts := 0
+    maxAttempts := 10
+    ; Batch all logs in the queue
+    logText := ""
+    while LogQueue.Length > 0 {
+        entry := LogQueue.RemoveAt(1)
+        logText .= entry.ts "`t" A_ComputerName "`t" entry.msg "`n"
+    }
+    while attempts < maxAttempts {
+        try {
+            FileAppend logText, LogPath
+            break
+        } catch Error as err {
+            attempts++
+            Sleep 100  ; wait 100ms before retry
+            if attempts >= maxAttempts {
+                MsgBox "Failed to write to log after multiple attempts: " err.Message, "Log Error", "iconx"
+                break
+            }
+        }
+    }
+    ; Continue timer for next batch
+    SetTimer(LogWorker, -LogIntervalMs)
+}
+
+FlushLogQueue() {
+    global LogQueue, LogPath
+    SetTimer(LogWorker, 0)  ; Stop the log worker timer
+    if LogQueue.Length = 0
+        return
+    SplitPath(LogPath, ,&OutDir)
+    logText := ""
+    while LogQueue.Length > 0 {
+        entry := LogQueue.RemoveAt(1)
+        logText .= entry.ts "`t" A_ComputerName "`t" entry.msg "`n"
+    }
+    try {
+        FileAppend logText, LogPath
+    } catch Error as err {
+        MsgBox "Failed to flush log queue: " err.Message, "Log Error", "iconx"
+    }
 }
 
 selectedRegion := RegionSetting()
 
 ; --- Helper for capture and logging ---
 CaptureAndLog(region, toClipboard, showConfirm, deduplicate, outputPathTemplate, logPrefix := "Captured", absolutePath := "") {
-    StartTime := A_TickCount
+    ; StartTime := A_TickCount
     basePath := absolutePath != "" ? absolutePath : ScreenshotPath
     sOutput := basePath . FormatTime(A_Now, outputPathTemplate)
     ret := CaptureScreenRegion(&region, sFilename:=sOutput, toClipboard, showConfirm, deduplicate)
-    if ret {
-        writeLog logPrefix " to " sOutput " (" region.ScreenString() ") in " A_TickCount-StartTime "ms."
-    }
     return ret
 }
 
@@ -602,7 +675,7 @@ GetGrayArrayFromBitmap(pBitmap, w, h) {
 
 
 DoCapture(immediateCapture := false) {
-    global isCaptureContinue, captureRegion, CaptureCount, ContinuousCapturePath, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, isCaptureInProgress
+    global isCaptureContinue, captureRegion, CaptureCount, ContinuousCapturePath, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, isCaptureInProgress, ShowConfirmOnContinuousCapture
     if !isCaptureContinue {
         StopContinuousCapture() ; Ensure cleanup if capture is stopped
         return
@@ -612,14 +685,19 @@ DoCapture(immediateCapture := false) {
         return
     }
     isCaptureInProgress := true
+    startTick := A_TickCount
     try {
         CaptureCount += 1
         outputTemplate := ScreenshotFilenameTemplate_Continuous . Format("_{:05}.png",CaptureCount)
-        CaptureAndLog(captureRegion, false, true, !immediateCapture, outputTemplate, "Captured", ContinuousCapturePath)
+        CaptureAndLog(captureRegion, toClipboard:=false, showConfirm:=ShowConfirmOnContinuousCapture, deduplicate:=!immediateCapture, outputPathTemplate:=outputTemplate, logPrefix:="Captured", absolutePath:=ContinuousCapturePath)
     } finally {
         isCaptureInProgress := false
     }
-    SetTimer(DoCapture, -captureIntervalMs)
+    elapsed := A_TickCount - startTick
+    nextInterval := captureIntervalMs - elapsed
+    if (nextInterval < 1)
+        nextInterval := 1
+    SetTimer(DoCapture, -nextInterval)
 }
 
 StartContinuousCapture()
