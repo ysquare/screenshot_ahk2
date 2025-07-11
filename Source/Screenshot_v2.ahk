@@ -123,6 +123,43 @@ IsBitmapChangedAndUpdate(pBitmap) {
     return !isDuplicate
 }
 
+global SaveQueue := []          ; Array of {bitmap, filename, region, showConfirm, logPrefix}
+global IsSaveWorkerRunning := false
+
+QueueBitmapForSaving(pBitmap, sFilename, region, showConfirm, logPrefix := "Captured") {
+    global SaveQueue, IsSaveWorkerRunning
+    SaveQueue.Push({bitmap: pBitmap, filename: sFilename, region: region.Clone(), showConfirm: showConfirm, logPrefix: logPrefix})
+    if !IsSaveWorkerRunning {
+        IsSaveWorkerRunning := true
+        SetTimer(SaveBitmapWorker, 10)
+    }
+}
+
+SaveBitmapWorker() {
+    global SaveQueue, IsSaveWorkerRunning
+    if SaveQueue.Length = 0 {
+        IsSaveWorkerRunning := false
+        SetTimer(SaveBitmapWorker, 0)
+        return
+    }
+    item := SaveQueue.RemoveAt(1)
+    sFilename := item.filename
+    sFilename := updateFilename(&sFilename)
+    ; 2. save bitmap to file
+    Gdip_SaveBitmapToFile(item.bitmap, sFilename)
+    Gdip_DisposeImage(item.bitmap)
+    ; 3. write to log
+    if item.HasOwnProp("region") && item.region
+        writeLog(item.logPrefix " to " sFilename " (" item.region.ScreenString() ")")
+    else
+        writeLog(item.logPrefix " to " sFilename)
+    ; 4. show confirmation
+    if item.showConfirm && FileExist(sFilename)
+        ShowRegion(item.region)
+    ; Continue timer for next item
+    SetTimer(SaveBitmapWorker, -10)
+}
+
 CaptureScreenRegion(&region, sFilename:="", toClipboard:=False, showConfirm:=true, deduplicate:=false)
 {
     global lastThumbGrayArr
@@ -133,29 +170,26 @@ CaptureScreenRegion(&region, sFilename:="", toClipboard:=False, showConfirm:=tru
         {
             ; GDI+ is already started globally
             pBitmap := Gdip_BitmapFromScreen(region.ScreenString(), 0x40cc0020) ; always getting bitmap from screen, not from window
-            if deduplicate {
-                if !IsBitmapChangedAndUpdate(pBitmap) {
-                Gdip_DisposeImage(pBitmap)
-                return 0 ; skip save, duplicate
-            }
-            }
-            if toClipboard
-                Gdip_SetBitmapToClipboard(pBitmap)
-            if sFilename
-                Gdip_SaveBitmapToFile(pBitmap, updateFilename(&sFilename))
-
             if !pBitmap || pBitmap = -1
             {
                 MsgBox "Failed to capture screen! pBitmap is invalid."
                 return 0
             }
-
-            Gdip_DisposeImage(pBitmap)
-
-            ; display a confirmation splash if screenshot succeeds
-            if showConfirm && FileExist(sFilename)
-                ShowRegion(region)
-            return 1 ; indicate saved
+            if deduplicate {
+                if !IsBitmapChangedAndUpdate(pBitmap) {
+                    Gdip_DisposeImage(pBitmap)
+                    return 0 ; skip save, duplicate
+                }
+            }
+            if toClipboard
+                Gdip_SetBitmapToClipboard(pBitmap)
+            if sFilename {
+                QueueBitmapForSaving(pBitmap, sFilename, region, showConfirm)
+                ; Do NOT dispose pBitmap here! The worker will do it.
+            } else {
+                Gdip_DisposeImage(pBitmap)
+            }
+            return 1 ; indicate saved/queued
         }
     }
     return 0
