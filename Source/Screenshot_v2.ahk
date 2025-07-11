@@ -34,7 +34,7 @@ SnapshotFlashTransparency := 128    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
 ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd-HHmmss"
 ScreenshotFolderTemplate := "Screen yyyyMMdd-HHmmss"
-SmallDelta := 10  ; the smallest screenshot that can be taken is 10x10 by pixel
+SmallDelta := 20  ; the smallest screenshot that can be taken is 10x10 by pixel
 
 captureIntervalMs := 1000 ; Default interval in milliseconds, if not overridden by .config.ini, set it to 1s.
 BitmapCompareThreshold := 1 ; the threshold for bitmap comparison, typically between 1 and 10, can be float number
@@ -274,7 +274,7 @@ TearingDown:
         if !selectState
         {
             MouseGetPos &vX, &vY
-            if (!IsSet(vX0) || !IsSet(Vy0) || (vX!=vX0 or vY!=vY0))
+            if (!IsSet(vX0) || !IsSet(Vy0) || (Abs(vX-vX0) + Abs(vY-vY0) > SmallDelta))
             {
                 myGui.Show "Hide"
 
