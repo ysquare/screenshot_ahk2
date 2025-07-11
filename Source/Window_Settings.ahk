@@ -290,6 +290,10 @@ Class RegionSetting
                 if (rect.r <= rect.l || rect.b <= rect.t)
                 {
                     this.get_focus_content_element()
+                    if (this.focus_content_element = 0) {
+                        this.win_id := 0
+                        return
+                    }
                     rect := this.focus_content_element.BoundingRectangle
                 }
                 this.left := rect.l, this.top := rect.t, this.right := rect.r, this.bottom := rect.b
