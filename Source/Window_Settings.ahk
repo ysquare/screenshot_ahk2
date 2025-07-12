@@ -291,8 +291,7 @@ Class RegionSetting
                 {
                     this.get_focus_content_element()
                     if (this.focus_content_element = 0) {
-                        this.win_id := 0
-                        return
+                        throw TargetError("Focus content element is not set.")
                     }
                     rect := this.focus_content_element.BoundingRectangle
                 }
@@ -301,12 +300,15 @@ Class RegionSetting
             else
             {
                 WinGetPos(&x, &y, &w, &h, "ahk_id " this.win_id)
+                if (w <= 0 || h <= 0)
+                    throw TargetError("Window size is invalid.")
                 this.left := x, this.top := y, this.right := x+w, this.bottom := y+h
             }
         }
         Catch TargetError as err
         {
             this.win_id := 0
+            this.is_focus_content := false
         }
     }
 

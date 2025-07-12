@@ -676,6 +676,17 @@ GetGrayArrayFromBitmap(pBitmap, w, h) {
 
 DoCapture(immediateCapture := false) {
     global isCaptureContinue, captureRegion, CaptureCount, ContinuousCapturePath, ScreenshotFilenameTemplate, stopGui, captureIntervalMs, isCaptureInProgress, ShowConfirmOnContinuousCapture
+
+    static prev_win_id := 0
+    ; Stop continuous capture if win_id transitions from nonzero to zero (any process)
+    if (prev_win_id != 0 && captureRegion.win_id = 0) {
+        writeLog("Session ended (win_id=0), stopping continuous capture.")
+        StopContinuousCapture()
+        prev_win_id := 0
+        return
+    }
+    prev_win_id := captureRegion.win_id
+
     if !isCaptureContinue {
         StopContinuousCapture() ; Ensure cleanup if capture is stopped
         return
