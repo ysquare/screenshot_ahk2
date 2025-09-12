@@ -278,10 +278,12 @@ SelectRegion(&region)
     {
         if GetKeyState("LButton")
         {
+            ; Capture the exact position where mouse was pressed down
+            MouseGetPos &dragStartX, &dragStartY
             selectState := 1
             break
         }
-        Sleep 10
+        Sleep 1  ; Minimal delay for responsiveness
     }
     SetTimer(SelectWindow_Update, 0)
     Hotkey "f", SelectWindow_PresetUpdate, "Off"
@@ -327,19 +329,38 @@ TearingDown:
         if !selectState
         {
             MouseGetPos &vX, &vY
-            if (!IsSet(vX0) || !IsSet(Vy0) || (Abs(vX-vX0) + Abs(vY-vY0) > SmallDelta))
-            {
-                myGui.Show "Hide"
+            ; Use dragStartX/dragStartY if set, otherwise use current position
+            if (IsSet(dragStartX) && IsSet(dragStartY)) {
+                if (Abs(vX-dragStartX) + Abs(vY-dragStartY) > SmallDelta)
+                {
+                    myGui.Show "Hide"
 
-                processname := region.GetProcessName()
-                if BorderSettings.Has(processname)
-                    region.borders := BorderSettings[processname]
-                else
-                    region.borders := BorderSettings["default"]
+                    processname := region.GetProcessName()
+                    if BorderSettings.Has(processname)
+                        region.borders := BorderSettings[processname]
+                    else
+                        region.borders := BorderSettings["default"]
 
-                GetWindowRegionFromMouse(&region)
-                myGui.Show(region.GuiString())
-                vX0 := vX, vY0 := vY
+                    GetWindowRegionFromMouse(&region)
+                    myGui.Show(region.GuiString())
+                }
+            } else {
+                ; Before mouse click, use the original logic with current position
+                if (!IsSet(vX0) || !IsSet(vY0) || (Abs(vX-vX0) + Abs(vY-vY0) > SmallDelta))
+                {
+                    myGui.Show "Hide"
+
+                    processname := region.GetProcessName()
+                    if BorderSettings.Has(processname)
+                        region.borders := BorderSettings[processname]
+                    else
+                        region.borders := BorderSettings["default"]
+
+                    GetWindowRegionFromMouse(&region)
+                    myGui.Show(region.GuiString())
+                    if !IsSet(vX0) || !IsSet(vY0)
+                        vX0 := vX, vY0 := vY
+                }
             }
         }
     }
@@ -371,10 +392,11 @@ TearingDown:
         if !selectState
         {
             MouseGetPos &vX, &vY
-            if (abs(vX-vX0)>SmallDelta and (abs(vY-vY0)>SmallDelta))
+            ; Small tolerance to distinguish between click and drag
+            if (abs(vX-dragStartX)>5 or abs(vY-dragStartY)>5)  ; 5 pixel tolerance for drag start
             {
                 ; todo: will the following 2 lines too slow for region drag?
-                region.SetRegionByPos(vX, vY, vX0, vY0)
+                region.SetRegionByPos(vX, vY, dragStartX, dragStartY)  ; Use original mouse-down position
                 region.MoveGui(myGui)
             }
         }
@@ -387,6 +409,7 @@ TearingDown:
     }
 
 }
+
 
 
 AdjustConfirmWindow(aGui, &region)  ; todo: continue here
