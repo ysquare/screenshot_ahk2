@@ -347,7 +347,9 @@ Class RegionSetting
             ; Get the root UIA element for the Teams window
             root := UIA.ElementFromHandle(teamsHwnd)
             try {
-                this.focus_content_element := root.FindFirst({Name: "共享内容视图"}).FindFirst({Type:"Menu"})
+                ; Search for both Chinese and English versions using Or condition
+                sharedContentElement := root.FindFirst({Or: [{Name: "共享内容视图"}, {Name: "Shared content view"}]})
+                this.focus_content_element := sharedContentElement.FindFirst({Type:"Menu"})
                 this.focus_win_id := this.win_id
             } catch {
                 this.is_focus_content := false
