@@ -230,17 +230,6 @@ Class RegionSetting
         return (OutWidth>0 && OutHeight>0)
     }
 
-    GetFullRegionPos(&x1, &y1, &x2, &y2)
-    {
-        this.check_win_id()
-        x1 := this.left
-        y1 := this.top
-        x2 := this.right
-        y2 := this.bottom
-
-        return (x2>x1 && y2>y1)
-    }
-
     SetRegionRect(x, y, w, h)
     {
         this.GetRegionRect(&x0, &y0, &w0, &h0)
