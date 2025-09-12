@@ -127,7 +127,7 @@ teams.rights := CyclicArray(382, 494, 0)
 
 wemeet := BorderSetting()
 wemeet.settings := CyclicArray(
-    {l:1, t:1, r:0, b:0, ratio:0, extended_cut:0},
+    {l:21, t:20, r:21, b:21, ratio:0, extended_cut:0},
     {l:0, t:0, r:0, b:0, ratio:0, extended_cut:0}
 )
 
