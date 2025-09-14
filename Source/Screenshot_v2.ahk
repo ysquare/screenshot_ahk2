@@ -254,6 +254,7 @@ class SelectionState {
         this.dragStartY := 0
         this.initialX := 0
         this.initialY := 0
+        this.isDragging := false  ; Track if we've actually started dragging (exceeded 5px threshold)
         this.gui := 0
         this.timers := Map()
         this.hotkeys := []
@@ -441,10 +442,24 @@ _DragRegionPhase(&state, &region) {
         ; Wait for mouse release or cancellation
         while state.IsActive() && state.phase = SelectionPhase.DRAG_REGION {
             if !GetKeyState("LButton") {
-                ; Capture exact mouse release position and update region one final time
+                ; Capture exact mouse release position
                 MouseGetPos &releaseX, &releaseY
-                region.SetRegionByPos(releaseX, releaseY, state.dragStartX, state.dragStartY)
-                region.MoveGui(state.gui)
+                
+                ; Check if release is within 5px threshold - if so, treat as window select (click)
+                deltaX := Abs(releaseX - state.dragStartX)
+                deltaY := Abs(releaseY - state.dragStartY)
+                
+                if (!state.isDragging) {
+                    ; This was a click, not a drag - keep the current window-based region
+                    ; No need to update region since it should already be set from window selection
+                    writeLog("[DEBUG] Mouse release within 5px threshold - treating as window selection")
+                } else {
+                    ; This was a real drag - update region with final position
+                    region.SetRegionByPos(releaseX, releaseY, state.dragStartX, state.dragStartY)
+                    region.MoveGui(state.gui)
+                    writeLog("[DEBUG] Mouse release after drag - using drag selection")
+                }
+                
                 state.phase := SelectionPhase.CONFIRM
                 break
             }
@@ -528,6 +543,12 @@ _UpdateDragSelection(&state, &region) {
     deltaY := Abs(currentY - state.dragStartY)
     
     if (deltaX > 5 || deltaY > 5) {
+        ; Mark that we've started dragging
+        if (!state.isDragging) {
+            state.isDragging := true
+            writeLog("[DEBUG] Started dragging - exceeded 5px threshold")
+        }
+        
         try {
             ; Always use the original dragStartX/dragStartY as the fixed starting point
             region.SetRegionByPos(currentX, currentY, state.dragStartX, state.dragStartY)
