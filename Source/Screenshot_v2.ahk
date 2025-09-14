@@ -401,6 +401,7 @@ _WindowSelectionPhase(&state, &region) {
                 MouseGetPos &tempX, &tempY
                 state.dragStartX := tempX
                 state.dragStartY := tempY
+                ; Don't set region immediately - wait for 5px threshold in drag update
                 state.phase := SelectionPhase.DRAG_REGION
                 break
             }
@@ -440,6 +441,10 @@ _DragRegionPhase(&state, &region) {
         ; Wait for mouse release or cancellation
         while state.IsActive() && state.phase = SelectionPhase.DRAG_REGION {
             if !GetKeyState("LButton") {
+                ; Capture exact mouse release position and update region one final time
+                MouseGetPos &releaseX, &releaseY
+                region.SetRegionByPos(releaseX, releaseY, state.dragStartX, state.dragStartY)
+                region.MoveGui(state.gui)
                 state.phase := SelectionPhase.CONFIRM
                 break
             }
@@ -518,12 +523,13 @@ _UpdateDragSelection(&state, &region) {
         
     lastX := currentX, lastY := currentY, lastUpdate := currentTime
     
-    ; Check if drag threshold is exceeded (5px tolerance)
+    ; Check if drag threshold is exceeded (5px tolerance to distinguish click from drag)
     deltaX := Abs(currentX - state.dragStartX)
     deltaY := Abs(currentY - state.dragStartY)
     
     if (deltaX > 5 || deltaY > 5) {
         try {
+            ; Always use the original dragStartX/dragStartY as the fixed starting point
             region.SetRegionByPos(currentX, currentY, state.dragStartX, state.dragStartY)
             region.MoveGui(state.gui)
         } catch Error as err {
