@@ -190,7 +190,7 @@ CaptureScreenRegion(&region, sFilename:="", toClipboard:=False, showConfirm:=tru
             pBitmap := Gdip_BitmapFromScreen(region.ScreenString(), 0x40cc0020) ; always getting bitmap from screen, not from window
             if !pBitmap || pBitmap = -1
             {
-                MsgBox "Failed to capture screen! pBitmap is invalid."
+                writeLog("Failed to capture screen! pBitmap is invalid.")
                 return 0
             }
             if deduplicate {
@@ -328,7 +328,16 @@ TearingDown:
     {
         if !selectState
         {
+            static lastX := 0, lastY := 0, lastUpdate := 0
             MouseGetPos &vX, &vY
+            
+            ; Throttle updates to every 50ms minimum and 5px movement
+            currentTime := A_TickCount
+            if (currentTime - lastUpdate < 50) && (Abs(vX-lastX) < 5 && Abs(vY-lastY) < 5)
+                return
+                
+            lastX := vX, lastY := vY, lastUpdate := currentTime
+            
             ; Use dragStartX/dragStartY if set, otherwise use current position
             if (IsSet(dragStartX) && IsSet(dragStartY)) {
                 if (Abs(vX-dragStartX) + Abs(vY-dragStartY) > SmallDelta)
@@ -391,11 +400,19 @@ TearingDown:
     {
         if !selectState
         {
+            static lastX := 0, lastY := 0, lastUpdate := 0
             MouseGetPos &vX, &vY
+            
+            ; Throttle drag updates to every 16ms (~60fps) and 2px movement
+            currentTime := A_TickCount
+            if (currentTime - lastUpdate < 16) && (Abs(vX-lastX) < 2 && Abs(vY-lastY) < 2)
+                return
+                
+            lastX := vX, lastY := vY, lastUpdate := currentTime
+            
             ; Small tolerance to distinguish between click and drag
             if (abs(vX-dragStartX)>5 or abs(vY-dragStartY)>5)  ; 5 pixel tolerance for drag start
             {
-                ; todo: will the following 2 lines too slow for region drag?
                 region.SetRegionByPos(vX, vY, dragStartX, dragStartY)  ; Use original mouse-down position
                 region.MoveGui(myGui)
             }
@@ -573,7 +590,7 @@ LogWorker() {
             attempts++
             Sleep 100  ; wait 100ms before retry
             if attempts >= maxAttempts {
-                MsgBox "Failed to write to log after multiple attempts: " err.Message, "Log Error", "iconx"
+                writeLog("[ERROR] Failed to write to log after multiple attempts: " err.Message)
                 break
             }
         }
@@ -596,7 +613,7 @@ FlushLogQueue() {
     try {
         FileAppend logText, LogPath
     } catch Error as err {
-        MsgBox "Failed to flush log queue: " err.Message, "Log Error", "iconx"
+        writeLog("[ERROR] Failed to flush log queue: " err.Message)
     }
 }
 
@@ -721,9 +738,14 @@ DoCapture(immediateCapture := false) {
     isCaptureInProgress := true
     startTick := A_TickCount
     try {
-        CaptureCount += 1
-        outputTemplate := ScreenshotFilenameTemplate_Continuous . Format("_{:05}.png",CaptureCount)
-        CaptureAndLog(captureRegion, toClipboard:=false, showConfirm:=ShowConfirmOnContinuousCapture, deduplicate:=!immediateCapture, outputPathTemplate:=outputTemplate, logPrefix:="Captured", absolutePath:=ContinuousCapturePath)
+        ; Check if we can capture:
+        ; - If no win_id: free screen region (always valid)
+        ; - If has win_id: check if window region is valid
+        if (!captureRegion.win_id || captureRegion.check_win_id()) {
+            CaptureCount += 1
+            outputTemplate := ScreenshotFilenameTemplate_Continuous . Format("_{:05}.png",CaptureCount)
+            CaptureAndLog(captureRegion, toClipboard:=false, showConfirm:=ShowConfirmOnContinuousCapture, deduplicate:=!immediateCapture, outputPathTemplate:=outputTemplate, logPrefix:="Captured", absolutePath:=ContinuousCapturePath)
+        }
     } finally {
         isCaptureInProgress := false
     }

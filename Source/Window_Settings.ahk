@@ -270,7 +270,7 @@ Class RegionSetting
     check_win_id() ; sync win_id to region positions
     {
         if this.win_id = 0
-            return
+            return true  ; No window to track, free screen region is always valid
         Try
         {
             if (this.is_focus_content && this.focus_win_id = this.win_id)
@@ -293,11 +293,19 @@ Class RegionSetting
                     throw TargetError("Window size is invalid.")
                 this.left := x, this.top := y, this.right := x+w, this.bottom := y+h
             }
+            return true  ; Success
         }
         Catch TargetError as err
         {
-            this.win_id := 0
-            this.is_focus_content := false
+            ; Only reset win_id to 0 if window truly doesn't exist
+            if !WinExist("ahk_id " this.win_id)
+            {
+                this.win_id := 0
+                this.is_focus_content := false
+                return false  ; Window closed
+            }
+            ; Window exists but has invalid dimensions (e.g., during maximization)
+            return false  ; Window in invalid state
         }
     }
 
