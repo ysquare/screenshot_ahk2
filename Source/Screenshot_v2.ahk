@@ -237,194 +237,325 @@ ShowCapturedRegion(region) {
     SetTimer(() => (IsSet(MyGui) && MyGui ? MyGui.Destroy() : 0), -SnapshotFlashDuration)
 }
 
-SelectRegion(&region)
-{
-    global SelectionColor, SelectionTransparency
-    CoordMode "Mouse", "Screen"
+; --- Constants for SelectRegion phases ---
+class SelectionPhase {
+    static WINDOW_SELECT := 1
+    static DRAG_REGION := 2
+    static CONFIRM := 3
+    static CANCELED := -1
+    static COMPLETED := 0
+}
 
-    selectState := 0   ; selectState 0 - waiting to select; -1 - canceled; 1 - ready to proceed
-    DetectHiddenWindows True
-    myGui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound -DPIScale")
-	myGui.BackColor := SelectionColor
-	WinSetTransparent SelectionTransparency, myGui
-
-    Hotkey "*RButton", SelectRegion_Canceled, "On" ; * meaning the right button click happening with any other key down.
-    Hotkey "Esc", SelectRegion_Canceled, "On"
-
-    ; before selecting windowClass
-    region.check_win_id()  ; windows could have been closed, thus need another check
-    MyGui.Show(region.GuiString())
+class SelectionState {
+    __New() {
+        this.phase := SelectionPhase.WINDOW_SELECT
+        this.canceled := false
+        this.dragStartX := 0
+        this.dragStartY := 0
+        this.initialX := 0
+        this.initialY := 0
+        this.gui := 0
+        this.timers := Map()
+        this.hotkeys := []
+    }
     
-    if region.IsSet()  ; todo: this code does not work
-    {
-        region.GetCenter(&vX0, &vY0)
-        MouseMove(vX0, vY0)
+    Cancel() {
+        this.canceled := true
+        this.phase := SelectionPhase.CANCELED
     }
-
-    ; globally, selectState means the status: 0 - stay in current state, 1 - should go to the next state, -1: user canceled
-    ; here during window selection, selectState: 0 - selecting windows, 1 - mouse down, -1 - canceled (ESC or right click)
-    Hotkey "f", SelectWindow_PresetUpdate, "On"  ; toggle content focus
-    Hotkey "s", SelectWindow_PresetUpdate, "On"  ; adjusting the whole set
-    Hotkey "r", SelectWindow_PresetUpdate, "On"  ; adjusting ratio
-    Hotkey "e", SelectWindow_PresetUpdate, "On"  ; adjusting extended cut
-    Hotkey "t", SelectWindow_PresetUpdate, "On"  ; adjusting top only
-    Hotkey "w", SelectWindow_PresetUpdate, "On"  ; adjusting width only
-    Hotkey "l", SelectWindow_PresetUpdate, "On"  ; adjusting left only
-    Hotkey "h", SelectWindow_PresetUpdate, "On"  ; adjusting hight only
-
-    ; Preset_updated := False ; True if a preset update (boundary or aspect ratio) is applied
-    SetTimer(SelectWindow_Update, 250)
-    While !selectState   ; mouse click or ESC/right click to get out of the cycle
-    {
-        if GetKeyState("LButton")
-        {
-            ; Capture the exact position where mouse was pressed down
-            MouseGetPos &dragStartX, &dragStartY
-            selectState := 1
-            break
-        }
-        Sleep 1  ; Minimal delay for responsiveness
+    
+    IsActive() {
+        return !this.canceled && this.phase > SelectionPhase.COMPLETED
     }
-    SetTimer(SelectWindow_Update, 0)
-    Hotkey "f", SelectWindow_PresetUpdate, "Off"
-    Hotkey "s", SelectWindow_PresetUpdate, "Off"
-    Hotkey "r", SelectWindow_PresetUpdate, "Off"
-    Hotkey "e", SelectWindow_PresetUpdate, "Off"
-    Hotkey "t", SelectWindow_PresetUpdate, "Off"
-    Hotkey "w", SelectWindow_PresetUpdate, "Off"
-    Hotkey "l", SelectWindow_PresetUpdate, "Off"
-    Hotkey "h", SelectWindow_PresetUpdate, "Off"
-
-    if (selectState = -1)   ; user cancaled during window selection (didn't click down button and escaped)
-        Goto TearingDown
-
-    ; selectState: 0 - dragging with mouse LButton down, 1 - mouse LButton up, -1 - canceled (ESC or right click)
-    selectState := 0
-  
-    SetTimer(RegionDrag_Update, 10)
-    While !selectState
-    {
-        if !GetKeyState("LButton")
-        {
-            selectState := 1
-            break
-        }
-        Sleep 20
-    }
-    SetTimer(RegionDrag_Update, 0)
-
-    if (selectState = -1)  ; user cancels when dragging (escaped before click button up)
-        Goto TearingDown
-
-    selectState := AdjustConfirmWindow(myGui, &region)
-
-TearingDown:
-    Hotkey "Esc", SelectRegion_Canceled, "Off"
-    Hotkey "*RButton", SelectRegion_Canceled, "Off"
-	MyGui.Destroy
-	return selectState
-
-    SelectWindow_Update()
-    {
-        if !selectState
-        {
-            static lastX := 0, lastY := 0, lastUpdate := 0
-            MouseGetPos &vX, &vY
-            
-            ; Throttle updates to every 50ms minimum and 5px movement
-            currentTime := A_TickCount
-            if (currentTime - lastUpdate < 50) && (Abs(vX-lastX) < 5 && Abs(vY-lastY) < 5)
-                return
-                
-            lastX := vX, lastY := vY, lastUpdate := currentTime
-            
-            ; Use dragStartX/dragStartY if set, otherwise use current position
-            if (IsSet(dragStartX) && IsSet(dragStartY)) {
-                if (Abs(vX-dragStartX) + Abs(vY-dragStartY) > SmallDelta)
-                {
-                    myGui.Show "Hide"
-
-                    processname := region.GetProcessName()
-                    if BorderSettings.Has(processname)
-                        region.borders := BorderSettings[processname]
-                    else
-                        region.borders := BorderSettings["default"]
-
-                    GetWindowRegionFromMouse(&region)
-                    myGui.Show(region.GuiString())
-                }
-            } else {
-                ; Before mouse click, use the original logic with current position
-                if (!IsSet(vX0) || !IsSet(vY0) || (Abs(vX-vX0) + Abs(vY-vY0) > SmallDelta))
-                {
-                    myGui.Show "Hide"
-
-                    processname := region.GetProcessName()
-                    if BorderSettings.Has(processname)
-                        region.borders := BorderSettings[processname]
-                    else
-                        region.borders := BorderSettings["default"]
-
-                    GetWindowRegionFromMouse(&region)
-                    myGui.Show(region.GuiString())
-                    if !IsSet(vX0) || !IsSet(vY0)
-                        vX0 := vX, vY0 := vY
-                }
+    
+    Cleanup() {
+        ; Clean up timers
+        for name, _ in this.timers
+            SetTimer(name, 0)
+        this.timers.Clear()
+        
+        ; Clean up hotkeys
+        for hotkey in this.hotkeys {
+            try {
+                Hotkey hotkey.key, hotkey.func, "Off"
+            } catch {
+                ; Ignore cleanup errors
             }
         }
-    }
-
-    SelectWindow_PresetUpdate(ThisHotkey)
-    {
-        if (ThisHotKey = "f")
-            region.toggle_content_focus()
-        else if (ThisHotKey = "s")
-            region.change_border("SET")
-        else if (ThisHotKey = "r")
-            region.change_border("RATIO")
-        else if (ThisHotKey = "t")
-            region.change_border("TOP")
-        else if (ThisHotKey = "w")
-            region.change_border("RIGHT")
-        else if (ThisHotkey = "l")
-            region.change_border("LEFT")
-        else if (ThisHotkey = "h")
-            region.change_border("BOTTOM")
-        else if (ThisHotkey = "e")
-            region.change_border("EXTENDED") ; extend the region to the next ratio
-        region.moveGui(myGui)
-
-    }
-
-    RegionDrag_Update()
-    {
-        if !selectState
-        {
-            static lastX := 0, lastY := 0, lastUpdate := 0
-            MouseGetPos &vX, &vY
-            
-            ; Throttle drag updates to every 16ms (~60fps) and 2px movement
-            currentTime := A_TickCount
-            if (currentTime - lastUpdate < 16) && (Abs(vX-lastX) < 2 && Abs(vY-lastY) < 2)
-                return
-                
-            lastX := vX, lastY := vY, lastUpdate := currentTime
-            
-            ; Small tolerance to distinguish between click and drag
-            if (abs(vX-dragStartX)>5 or abs(vY-dragStartY)>5)  ; 5 pixel tolerance for drag start
-            {
-                region.SetRegionByPos(vX, vY, dragStartX, dragStartY)  ; Use original mouse-down position
-                region.MoveGui(myGui)
+        this.hotkeys := []
+        
+        ; Clean up GUI
+        if this.gui {
+            try {
+                this.gui.Destroy()
+            } catch {
+                ; Ignore cleanup errors
             }
+            this.gui := 0
         }
     }
+}
 
-    SelectRegion_Canceled(ThisHotKey)
-    {
-        if !selectState
-            selectState := -1
+SelectRegion(&region) {
+    global SelectionColor, SelectionTransparency, SmallDelta, BorderSettings
+    
+    ; Input validation
+    if !IsObject(region) {
+        writeLog("[ERROR] SelectRegion: Invalid region object")
+        return -1
     }
+    
+    ; Initialize state
+    state := SelectionState()
+    CoordMode "Mouse", "Screen"
+    DetectHiddenWindows True
+    
+    try {
+        ; Create and setup GUI
+        if !_InitializeSelectionGUI(&state, region)
+            return -1
+            
+        ; Phase 1: Window Selection
+        result := _WindowSelectionPhase(&state, &region)
+        if result <= 0
+            return result
+            
+        ; Phase 2: Drag Region (if mouse was pressed)
+        if state.phase = SelectionPhase.DRAG_REGION {
+            result := _DragRegionPhase(&state, &region)
+            if result <= 0
+                return result
+        }
+        
+        ; Phase 3: Confirmation
+        result := AdjustConfirmWindow(state.gui, &region)
+        return result
+        
+    } catch Error as err {
+        writeLog("[ERROR] SelectRegion failed: " err.Message)
+        return -1
+    } finally {
+        state.Cleanup()
+    }
+}
 
+_InitializeSelectionGUI(&state, region) {
+    global SelectionColor, SelectionTransparency
+    
+    try {
+        ; Create GUI
+        state.gui := Gui("-Caption +ToolWindow +AlwaysOnTop +LastFound -DPIScale")
+        state.gui.BackColor := SelectionColor
+        WinSetTransparent SelectionTransparency, state.gui
+        
+        ; Setup cancel hotkeys
+        cancelFunc := (*) => state.Cancel()
+        state.hotkeys.Push({key: "*RButton", func: cancelFunc})
+        state.hotkeys.Push({key: "Esc", func: cancelFunc})
+        Hotkey "*RButton", cancelFunc, "On"
+        Hotkey "Esc", cancelFunc, "On"
+        
+        ; Validate and show initial region
+        region.check_win_id()
+        state.gui.Show(region.GuiString())
+        
+        ; Move mouse to region center if region is set
+        if region.IsSet() {
+            region.GetCenter(&centerX, &centerY)
+            state.initialX := centerX
+            state.initialY := centerY
+            MouseMove(centerX, centerY)
+        } else {
+            MouseGetPos &tempX, &tempY
+            state.initialX := tempX
+            state.initialY := tempY
+        }
+        
+        return true
+    } catch Error as err {
+        writeLog("[ERROR] Failed to initialize selection GUI: " err.Message)
+        return false
+    }
+}
+
+_WindowSelectionPhase(&state, &region) {
+    global SmallDelta, BorderSettings
+    
+    try {
+        ; Setup adjustment hotkeys
+        adjustFunc := (key, *) => _HandleAdjustmentKey(key, &region, state.gui)
+        adjustKeys := ["f", "s", "r", "e", "t", "w", "l", "h"]
+        for key in adjustKeys {
+            state.hotkeys.Push({key: key, func: adjustFunc.Bind(key)})
+            Hotkey key, adjustFunc.Bind(key), "On"
+        }
+        
+        ; Setup window update timer
+        updateFunc := () => _UpdateWindowSelection(&state, &region)
+        state.timers["WindowUpdate"] := updateFunc
+        SetTimer(updateFunc, 100) ; Reduced frequency for better performance
+        
+        ; Wait for mouse click or cancellation
+        while state.IsActive() && state.phase = SelectionPhase.WINDOW_SELECT {
+            if GetKeyState("LButton") {
+                MouseGetPos &tempX, &tempY
+                state.dragStartX := tempX
+                state.dragStartY := tempY
+                state.phase := SelectionPhase.DRAG_REGION
+                break
+            }
+            Sleep 10 ; Reduced sleep for better responsiveness
+        }
+        
+        ; Clean up window selection phase
+        if state.timers.Has("WindowUpdate") {
+            SetTimer(state.timers["WindowUpdate"], 0)
+            state.timers.Delete("WindowUpdate")
+        }
+        
+        ; Remove adjustment hotkeys
+        for key in adjustKeys {
+            try {
+                Hotkey key, "Off"
+            } catch {
+                ; Ignore cleanup errors
+            }
+        }
+        
+        return state.IsActive() ? 1 : -1
+        
+    } catch Error as err {
+        writeLog("[ERROR] Window selection phase failed: " err.Message)
+        return -1
+    }
+}
+
+_DragRegionPhase(&state, &region) {
+    try {
+        ; Setup drag update timer
+        dragFunc := () => _UpdateDragSelection(&state, &region)
+        state.timers["DragUpdate"] := dragFunc
+        SetTimer(dragFunc, 16) ; ~60fps for smooth dragging
+        
+        ; Wait for mouse release or cancellation
+        while state.IsActive() && state.phase = SelectionPhase.DRAG_REGION {
+            if !GetKeyState("LButton") {
+                state.phase := SelectionPhase.CONFIRM
+                break
+            }
+            Sleep 10
+        }
+        
+        ; Clean up drag phase
+        if state.timers.Has("DragUpdate") {
+            SetTimer(state.timers["DragUpdate"], 0)
+            state.timers.Delete("DragUpdate")
+        }
+        
+        return state.IsActive() ? 1 : -1
+        
+    } catch Error as err {
+        writeLog("[ERROR] Drag region phase failed: " err.Message)
+        return -1
+    }
+}
+
+_UpdateWindowSelection(&state, &region) {
+    static lastX := 0, lastY := 0, lastUpdate := 0
+    global SmallDelta, BorderSettings
+    
+    if !state.IsActive()
+        return
+        
+    MouseGetPos &currentX, &currentY
+    currentTime := A_TickCount
+    
+    ; Throttle updates: 50ms minimum interval and 5px minimum movement
+    if (currentTime - lastUpdate < 50) && (Abs(currentX - lastX) < 5 && Abs(currentY - lastY) < 5)
+        return
+        
+    lastX := currentX, lastY := currentY, lastUpdate := currentTime
+    
+    ; Check if significant movement occurred
+    deltaX := Abs(currentX - state.initialX)
+    deltaY := Abs(currentY - state.initialY)
+    
+    if (deltaX + deltaY > SmallDelta) {
+        try {
+            state.gui.Show "Hide"
+            
+            ; Update region based on mouse position
+            processname := region.GetProcessName()
+            if BorderSettings.Has(processname)
+                region.borders := BorderSettings[processname]
+            else
+                region.borders := BorderSettings["default"]
+                
+            GetWindowRegionFromMouse(&region)
+            state.gui.Show(region.GuiString())
+            
+            ; Update initial position to current for next comparison
+            state.initialX := currentX
+            state.initialY := currentY
+        } catch Error as err {
+            writeLog("[ERROR] Failed to update window selection: " err.Message)
+        }
+    }
+}
+
+_UpdateDragSelection(&state, &region) {
+    static lastX := 0, lastY := 0, lastUpdate := 0
+    
+    if !state.IsActive()
+        return
+        
+    MouseGetPos &currentX, &currentY
+    currentTime := A_TickCount
+    
+    ; Throttle updates: 16ms for ~60fps and 2px minimum movement
+    if (currentTime - lastUpdate < 16) && (Abs(currentX - lastX) < 2 && Abs(currentY - lastY) < 2)
+        return
+        
+    lastX := currentX, lastY := currentY, lastUpdate := currentTime
+    
+    ; Check if drag threshold is exceeded (5px tolerance)
+    deltaX := Abs(currentX - state.dragStartX)
+    deltaY := Abs(currentY - state.dragStartY)
+    
+    if (deltaX > 5 || deltaY > 5) {
+        try {
+            region.SetRegionByPos(currentX, currentY, state.dragStartX, state.dragStartY)
+            region.MoveGui(state.gui)
+        } catch Error as err {
+            writeLog("[ERROR] Failed to update drag selection: " err.Message)
+        }
+    }
+}
+
+_HandleAdjustmentKey(key, &region, gui) {
+    try {
+        switch key {
+            case "f":
+                region.toggle_content_focus()
+            case "s":
+                region.change_border("SET")
+            case "r":
+                region.change_border("RATIO")
+            case "t":
+                region.change_border("TOP")
+            case "w":
+                region.change_border("RIGHT")
+            case "l":
+                region.change_border("LEFT")
+            case "h":
+                region.change_border("BOTTOM")
+            case "e":
+                region.change_border("EXTENDED")
+        }
+        region.moveGui(gui)
+    } catch Error as err {
+        writeLog("[ERROR] Failed to handle adjustment key '" key "': " err.Message)
+    }
 }
 
 
