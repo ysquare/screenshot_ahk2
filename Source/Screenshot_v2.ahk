@@ -261,11 +261,33 @@ class SelectionState {
     }
     
     Cancel() {
+        writeLog("[DEBUG] Cancel() method called - starting cleanup")
         this.canceled := true
         this.phase := SelectionPhase.CANCELED
+
         ; Immediately cleanup to prevent hotkey blocking
-        this.Cleanup()
-        writeLog("[DEBUG] Selection canceled - hotkeys and resources cleaned up")
+        try {
+            this.Cleanup()
+            writeLog("[DEBUG] Selection canceled - hotkeys and resources cleaned up successfully")
+        } catch Error as err {
+            writeLog("[ERROR] Failed to cleanup during cancellation: " err.Message)
+            ; Force cleanup individual components
+            try {
+                if this.hotkeys.Length > 0 {
+                    for hotkey in this.hotkeys {
+                        try {
+                            Hotkey hotkey.key, hotkey.func, "Off"
+                            writeLog("[DEBUG] Force disabled hotkey: " hotkey.key)
+                        } catch {
+                            writeLog("[WARNING] Failed to force disable hotkey: " hotkey.key)
+                        }
+                    }
+                    this.hotkeys := []
+                }
+            } catch {
+                writeLog("[ERROR] Force cleanup also failed")
+            }
+        }
     }
     
     IsActive() {
@@ -382,12 +404,13 @@ _InitializeSelectionGUI(&state, region) {
         state.gui.BackColor := SelectionColor
         WinSetTransparent SelectionTransparency, state.gui
         
-        ; Setup cancel hotkeys
-        cancelFunc := (*) => state.Cancel()
+        ; Setup cancel hotkeys with enhanced logging
+        cancelFunc := (*) => _HandleCancel(&state)
         state.hotkeys.Push({key: "*RButton", func: cancelFunc})
         state.hotkeys.Push({key: "Esc", func: cancelFunc})
         Hotkey "*RButton", cancelFunc, "On"
         Hotkey "Esc", cancelFunc, "On"
+        writeLog("[DEBUG] Cancel hotkeys (*RButton, Esc) activated")
         
         ; Validate and show initial region
         region.check_win_id()
@@ -590,6 +613,29 @@ _UpdateDragSelection(&state, &region) {
             writeLog("[ERROR] Failed to update drag selection: " err.Message)
         }
     }
+}
+
+_HandleCancel(&state) {
+    writeLog("[DEBUG] Cancel hotkey triggered - performing immediate cleanup")
+
+    ; Direct immediate cleanup without relying on state tracking
+    try {
+        Hotkey "*RButton", "Off"
+        writeLog("[DEBUG] *RButton hotkey disabled directly")
+    } catch Error as err {
+        writeLog("[WARNING] Failed to disable *RButton: " err.Message)
+    }
+
+    try {
+        Hotkey "Esc", "Off"
+        writeLog("[DEBUG] Esc hotkey disabled directly")
+    } catch Error as err {
+        writeLog("[WARNING] Failed to disable Esc: " err.Message)
+    }
+
+    ; Then call normal cancel process
+    state.Cancel()
+    writeLog("[DEBUG] state.Cancel() completed")
 }
 
 _HandleAdjustmentKey(key, &region, gui) {
