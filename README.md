@@ -27,12 +27,13 @@ A modern, flexible screenshot tool for AutoHotkey v2, supporting both single and
 
 ## Features
 
-- Select any window or screen region to capture
-- Resizable, movable region selection overlay
-- Save screenshots to file and clipboard
-- Continuous capture mode with change detection
-- Configurable paths and options via `.config.ini`
-- Logging of all captures
+- **Robust Region Selection:** Select any window or screen region with improved precision and reliability
+- **Interactive UI:** Resizable, movable region selection overlay with enhanced user controls
+- **Dual Output:** Save screenshots to file and clipboard simultaneously
+- **Continuous Capture:** Advanced continuous capture mode with intelligent change detection
+- **Configurable:** Extensive configuration options via `.config.ini`
+- **Comprehensive Logging:** Detailed logging of all captures and system events
+- **Stable Hotkey Management:** Reliable hotkey cleanup prevents interference with other applications
 
 ---
 
@@ -100,10 +101,16 @@ You can start a continuous capture session in two ways:
 | Ctrl+Win+T          | Start continuous capture immediately with the last selected region.                |
 | Ctrl+Win+Shift+T    | Stop continuous capture session.                                                   |
 
+**During Region Selection:**
+- **f, s, r, e, t, w, l, h**: Adjust window borders and selection options
+- **Esc** or **Right Click**: Cancel selection (hotkeys are immediately released)
+- **Left Click**: Select window or start drag region
+- **Drag**: Create custom rectangular region with precise start/end coordinates
+
 **Notes:**
-- You can rebind these hotkeys in `Sample.ahk` or assign them to mouse buttons for convenience.
-- During region selection, you can also use:
-  - **Esc** or **Right Click**: Cancel selection
+- You can rebind these hotkeys in `Sample.ahk` or assign them to mouse buttons for convenience
+- All hotkeys are properly cleaned up when selection is canceled, preventing interference with other applications
+- The selection process uses a 5px threshold to distinguish between window selection clicks and drag operations
 
 ---
 
@@ -130,6 +137,40 @@ IsShowStopCaptureUI = 1
 ```
 
 Adjust the paths and options as needed for your environment.
+
+---
+
+## Recent Improvements
+
+### v3.0 - Enhanced Region Selection & Hotkey Management
+
+**Major Refactoring (SelectRegion v3):**
+- **Completely redesigned SelectRegion function** for better robustness, clarity, and maintainability
+- **Modular architecture** with clear separation of window selection, drag region, and confirmation phases
+- **Enhanced state management** using dedicated SelectionState and SelectionPhase classes
+- **Improved error handling** with comprehensive try/catch blocks and logging throughout
+
+**Precision Improvements:**
+- **Exact drag coordinates:** Region selection now starts precisely where mouse is pressed and ends exactly where mouse is released
+- **Smart click vs drag detection:** 5px threshold distinguishes between window selection (clicks) and region dragging
+- **Consistent coordinate handling:** Eliminated coordinate inconsistencies between different selection phases
+
+**Critical Bug Fixes:**
+- **Fixed RButton hotkey blocking:** Resolved critical issue where canceling selection would leave RButton blocked in other applications
+- **Comprehensive hotkey cleanup:** Added immediate hotkey cleanup in all cancellation scenarios across multiple functions
+- **Resource leak prevention:** Proper cleanup of timers, hotkeys, and GUI resources in all exit conditions
+
+**Performance & UX Enhancements:**
+- **Optimized update frequencies:** Reduced GUI flicker and improved responsiveness
+- **Better throttling:** Implemented smart throttling for smooth dragging without performance impact
+- **Enhanced debugging:** Added comprehensive debug logging for troubleshooting and monitoring
+
+**Technical Improvements:**
+- **Idempotent cleanup:** All cleanup operations are safe to call multiple times
+- **Race condition elimination:** Fixed timing issues in hotkey management and state transitions
+- **Memory management:** Proper disposal of resources prevents memory leaks during extended use
+
+These improvements make the screenshot tool significantly more reliable, precise, and user-friendly while maintaining all existing functionality.
 
 ---
 
