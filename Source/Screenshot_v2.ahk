@@ -654,8 +654,19 @@ AdjustConfirmWindow(aGui, &region)  ; todo: continue here
         sleep 20
     }
 
-    Hotkey "*RButton", Confirm_Canceled, "Off"
-    Hotkey "Esc", Confirm_Canceled, "Off"
+    ; Clean up hotkeys (safe to call even if already cleaned up in Confirm_Canceled)
+    try {
+        Hotkey "*RButton", Confirm_Canceled, "Off"
+        writeLog("[DEBUG] AdjustConfirmWindow: RButton hotkey disabled")
+    } catch {
+        ; Already disabled, ignore
+    }
+    try {
+        Hotkey "Esc", Confirm_Canceled, "Off"
+        writeLog("[DEBUG] AdjustConfirmWindow: Esc hotkey disabled")
+    } catch {
+        ; Already disabled, ignore
+    }
     OnMessage(0x201, WM_LBUTTONDOWN, 0)
     
     WinGetPos &guix2, &guiy2, &guiw2, &guih2, aGui
@@ -667,8 +678,17 @@ AdjustConfirmWindow(aGui, &region)  ; todo: continue here
 
     Confirm_Canceled(ThisHotKey)
     {
-        if !confirmState
-        confirmState := -1
+        if !confirmState {
+            confirmState := -1
+            ; Immediately clean up hotkeys to prevent blocking
+            try {
+                Hotkey "*RButton", Confirm_Canceled, "Off"
+                Hotkey "Esc", Confirm_Canceled, "Off"
+                writeLog("[DEBUG] AdjustConfirmWindow: Canceled - hotkeys cleaned up immediately")
+            } catch Error as err {
+                writeLog("[WARNING] AdjustConfirmWindow: Failed to clean up hotkeys: " err.Message)
+            }
+        }
         return
     }
 
