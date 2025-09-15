@@ -178,3 +178,4 @@ These improvements make the screenshot tool significantly more reliable, precise
 
 - **Gdip library:** Based on [mmikeww/AHKv2-Gdip](https://github.com/mmikeww/AHKv2-Gdip), updated for AHK v2
 - **Region selection:** Inspired by [Lexikos's LetUserSelectRect](https://autohotkey.com/board/topic/45921-letuserselectrect-select-a-portion-of-the-screen/) and [jeeswg's improvements](https://www.autohotkey.com/boards/viewtopic.php?t=42810)
+- **UIA element detection:** [UIA-v2](https://github.com/Descolada/UIA-v2)
