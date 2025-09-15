@@ -263,6 +263,9 @@ class SelectionState {
     Cancel() {
         this.canceled := true
         this.phase := SelectionPhase.CANCELED
+        ; Immediately cleanup to prevent hotkey blocking
+        this.Cleanup()
+        writeLog("[DEBUG] Selection canceled - hotkeys and resources cleaned up")
     }
     
     IsActive() {
@@ -270,27 +273,40 @@ class SelectionState {
     }
     
     Cleanup() {
+        ; Make cleanup idempotent - safe to call multiple times
+
         ; Clean up timers
-        for name, _ in this.timers
-            SetTimer(name, 0)
-        this.timers.Clear()
-        
-        ; Clean up hotkeys
-        for hotkey in this.hotkeys {
-            try {
-                Hotkey hotkey.key, hotkey.func, "Off"
-            } catch {
-                ; Ignore cleanup errors
+        if this.timers.Count > 0 {
+            for name, _ in this.timers {
+                try {
+                    SetTimer(name, 0)
+                } catch {
+                    ; Ignore cleanup errors
+                }
             }
+            this.timers.Clear()
         }
-        this.hotkeys := []
-        
+
+        ; Clean up hotkeys
+        if this.hotkeys.Length > 0 {
+            for hotkey in this.hotkeys {
+                try {
+                    Hotkey hotkey.key, hotkey.func, "Off"
+                    writeLog("[DEBUG] Disabled hotkey: " hotkey.key)
+                } catch Error as err {
+                    writeLog("[WARNING] Failed to disable hotkey " hotkey.key ": " err.Message)
+                }
+            }
+            this.hotkeys := []
+        }
+
         ; Clean up GUI
         if this.gui {
             try {
                 this.gui.Destroy()
-            } catch {
-                ; Ignore cleanup errors
+                writeLog("[DEBUG] GUI destroyed")
+            } catch Error as err {
+                writeLog("[WARNING] Failed to destroy GUI: " err.Message)
             }
             this.gui := 0
         }
@@ -313,30 +329,47 @@ SelectRegion(&region) {
     
     try {
         ; Create and setup GUI
-        if !_InitializeSelectionGUI(&state, region)
+        if !_InitializeSelectionGUI(&state, region) {
+            state.Cleanup()
             return -1
-            
+        }
+
         ; Phase 1: Window Selection
         result := _WindowSelectionPhase(&state, &region)
-        if result <= 0
+        if result <= 0 {
+            ; Ensure cleanup happens on early exit (including cancellation)
+            if !state.canceled {
+                state.Cleanup()
+            }
             return result
-            
+        }
+
         ; Phase 2: Drag Region (if mouse was pressed)
         if state.phase = SelectionPhase.DRAG_REGION {
             result := _DragRegionPhase(&state, &region)
-            if result <= 0
+            if result <= 0 {
+                ; Ensure cleanup happens on early exit (including cancellation)
+                if !state.canceled {
+                    state.Cleanup()
+                }
                 return result
+            }
         }
-        
+
         ; Phase 3: Confirmation
         result := AdjustConfirmWindow(state.gui, &region)
+
+        ; Final cleanup (if not already cleaned up by cancellation)
+        if !state.canceled {
+            state.Cleanup()
+        }
+
         return result
-        
+
     } catch Error as err {
         writeLog("[ERROR] SelectRegion failed: " err.Message)
-        return -1
-    } finally {
         state.Cleanup()
+        return -1
     }
 }
 
