@@ -25,12 +25,12 @@
 DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr")
 
 SelectionColor := "Green"
-SelectionTransparency := 64   ; 0-255
+SelectionTransparency := 20   ; 0-255
 ConfirmColor := 0x0078D7 ; this is the same color with default window title bar
-ConfirmTransparency := 128
+ConfirmTransparency := 20
 SnapshotFlashColor := "Gray"
 SnapshotFlashDuration := 50 ;milliseconds
-SnapshotFlashTransparency := 64    ; 0-255
+SnapshotFlashTransparency := 30    ; 0-255
 ScreenshotFilenameTemplate := "Screen yyyyMMdd-HHmmss.png"
 ScreenshotFilenameTemplate_Continuous := "Screen yyyyMMdd-HHmmss"
 ScreenshotFolderTemplate := "Screen yyyyMMdd-HHmmss"
@@ -54,6 +54,7 @@ GetConfig(configFile)
         global captureIntervalMs := IniRead(configFile, "Capture", "CaptureIntervalMs")
         global BitmapCompareThreshold := IniRead(configFile, "Capture", "BitmapCompareThreshold")
         global IsShowStopCaptureUI := IniRead(configFile, "Capture", "IsShowStopCaptureUI", 0)
+        global showConfirmOnSingleCapture := IniRead(configFile, "Capture", "ShowConfirmOnSingleCapture", 1)
         global ShowConfirmOnContinuousCapture := IniRead(configFile, "Capture", "ShowConfirmOnContinuousCapture", 1)
     } Catch Error as err
     {
@@ -908,7 +909,7 @@ SelectRegionToCapture()
         return
     }
     ; Enter: single capture (default)
-    CaptureAndLog(captureRegion, true, true, false, ScreenshotFilenameTemplate)
+    CaptureAndLog(captureRegion, true, showConfirmOnSingleCapture, false, ScreenshotFilenameTemplate)
     return
 }
 
@@ -925,7 +926,7 @@ RepeatLastCapture()
             captureRegion := RegionSetting()
             captureRegion.SetRegionByPos(captureX, captureY, captureR, captureB)
         }
-        CaptureAndLog(captureRegion, true, true, false, ScreenshotFilenameTemplate)
+        CaptureAndLog(captureRegion, true, showConfirmOnSingleCapture, false, ScreenshotFilenameTemplate)
     }
     return
 }
