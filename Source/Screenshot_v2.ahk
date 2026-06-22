@@ -159,8 +159,13 @@ SaveBitmapWorker() {
     if item.toClipboard
         Gdip_SetBitmapToClipboard(item.bitmap)
     ; 2. save bitmap to file if filename is provided
-    if sFilename
+    if sFilename {
+        saveTick := A_TickCount
         Gdip_SaveBitmapToFile(item.bitmap, sFilename)
+        saveMs := A_TickCount - saveTick
+        if (saveMs > 250)
+            writeLog("[WARN] slow PNG save " saveMs "ms -> " sFilename " (a spike >~300ms can starve the keyboard hook)")
+    }
 
     Gdip_DisposeImage(item.bitmap)
     ; 3. write to log
@@ -314,7 +319,7 @@ class SelectionState {
         if this.hotkeys.Length > 0 {
             for hotkey in this.hotkeys {
                 try {
-                    Hotkey hotkey.key, hotkey.func, "Off"
+                    Hotkey hotkey.key, "Off"   ; disable only needs the key name + "Off" (not the func object)
                     writeLog("[DEBUG] Disabled hotkey: " hotkey.key)
                 } catch Error as err {
                     writeLog("[WARNING] Failed to disable hotkey " hotkey.key ": " err.Message)
@@ -888,6 +893,7 @@ CaptureAndLog(region, toClipboard, showConfirm, deduplicate, outputPathTemplate,
 
 SelectRegionToCapture()
 {
+    writeLog("[USER] SelectRegionToCapture")
     ; Safety: Ensure all capture timers are stopped and no capture is in progress
     global isCaptureContinue
     if isCaptureContinue {
@@ -915,6 +921,7 @@ SelectRegionToCapture()
 
 RepeatLastCapture()
 {
+    writeLog("[USER] RepeatLastCapture")
     if isCaptureContinue {
         DoCapture(immediateCapture:=true)
     }
@@ -1008,14 +1015,17 @@ DoCapture(immediateCapture := false) {
         isCaptureInProgress := false
     }
     elapsed := A_TickCount - startTick
+    if (elapsed > captureIntervalMs)
+        writeLog("[WARN] capture cycle " elapsed "ms exceeded interval " captureIntervalMs "ms - main thread may be saturating the keyboard hook")
     nextInterval := captureIntervalMs - elapsed
-    if (nextInterval < 1)
-        nextInterval := 1
+    if (nextInterval < 50)   ; floor: keep at least a brief gap so the main thread can service the keyboard hook
+        nextInterval := 50
     SetTimer(DoCapture, -nextInterval)
 }
 
 StartContinuousCapture()
 {
+    writeLog("[USER] StartContinuousCapture")
     global captureRegion, isCaptureContinue, stopGui, lastBitmap
     if isCaptureContinue {
         StopContinuousCapture()
@@ -1077,6 +1087,7 @@ ShowStopCaptureUI()
 }
 
 StopContinuousCapture() {
+    writeLog("[USER] StopContinuousCapture")
     global isCaptureContinue, stopGui
     isCaptureContinue := false
     SetTimer(DoCapture, 0)

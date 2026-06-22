@@ -275,6 +275,7 @@ Class RegionSetting
         {
             if (this.is_focus_content && this.focus_win_id = this.win_id)
             {
+                focusTick := A_TickCount  ; UIA reads can spike and starve the keyboard hook
                 ; The cached UIA element can be missing ("") or have a collapsed
                 ; rect when Teams changes its sharing layout. Refresh it; if it is
                 ; still unusable, drop focus and fall back to the window rect so
@@ -307,6 +308,8 @@ Class RegionSetting
                         throw TargetError("Window size is invalid.")
                     this.left := x, this.top := y, this.right := x+w, this.bottom := y+h
                 }
+                if (A_TickCount - focusTick > 250)
+                    writeLog("[WARN] slow UIA focus read " (A_TickCount - focusTick) "ms (can starve the keyboard hook)")
             }
             else
             {
