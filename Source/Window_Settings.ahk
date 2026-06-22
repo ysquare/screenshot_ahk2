@@ -275,16 +275,38 @@ Class RegionSetting
         {
             if (this.is_focus_content && this.focus_win_id = this.win_id)
             {
-                rect := this.focus_content_element.BoundingRectangle
-                if (rect.r <= rect.l || rect.b <= rect.t)
-                {
+                ; The cached UIA element can be missing ("") or have a collapsed
+                ; rect when Teams changes its sharing layout. Refresh it; if it is
+                ; still unusable, drop focus and fall back to the window rect so
+                ; the overlay keeps tracking instead of freezing.
+                if !IsObject(this.focus_content_element)
                     this.get_focus_content_element()
-                    if (this.focus_content_element = 0) {
-                        throw TargetError("Focus content element is not set.")
+                rect := 0
+                if IsObject(this.focus_content_element)
+                {
+                    try rect := this.focus_content_element.BoundingRectangle
+                    if (!IsObject(rect) || rect.r <= rect.l || rect.b <= rect.t)
+                    {
+                        this.get_focus_content_element()
+                        if IsObject(this.focus_content_element)
+                            try rect := this.focus_content_element.BoundingRectangle
                     }
-                    rect := this.focus_content_element.BoundingRectangle
                 }
-                this.left := rect.l, this.top := rect.t, this.right := rect.r, this.bottom := rect.b
+                if IsObject(rect) && rect.r > rect.l && rect.b > rect.t
+                {
+                    this.left := rect.l, this.top := rect.t, this.right := rect.r, this.bottom := rect.b
+                }
+                else
+                {
+                    ; Focus content unavailable - revert to window rect & disable focus
+                    this.is_focus_content := false
+                    this.focus_content_element := 0
+                    this.focus_win_id := 0
+                    WinGetPos(&x, &y, &w, &h, "ahk_id " this.win_id)
+                    if (w <= 0 || h <= 0)
+                        throw TargetError("Window size is invalid.")
+                    this.left := x, this.top := y, this.right := x+w, this.bottom := y+h
+                }
             }
             else
             {
@@ -330,7 +352,7 @@ Class RegionSetting
         this.is_focus_content := !this.is_focus_content
         if (this.is_focus_content)
         {
-            this.get_focus_content_element()
+            this.get_focus_content_element(true)  ; logDiag: capture element info on user-initiated press
         }
         else
         {
@@ -339,41 +361,87 @@ Class RegionSetting
         }
     }
 
-    get_focus_content_element()
+    get_focus_content_element(logDiag := false)
     {
-        process_name := WinGetProcessName("ahk_id " this.win_id)
-        
-        ; Determine if we need parent window based on window title
-        if (process_name = "msedgewebview2.exe" && InStr(WinGetTitle("ahk_id " this.win_id), "Microsoft Teams") = 0)
-            || (process_name = "WeMeetApp.exe" && WinGetTitle("ahk_id " this.win_id) = "VideoWindow")
-        {
-            hwnd := DllCall("GetParent", "Ptr", this.win_id, "Ptr")
-        }
-        else
-        {
-            hwnd := this.win_id
-        }
-        
-        root := UIA.ElementFromHandle(hwnd)
-        
+        ; Assume "not found" until a valid element is resolved. Everything below
+        ; is guarded so this method never throws - a failure simply disables
+        ; focus and lets callers fall back to the plain window rect.
+        this.focus_content_element := 0
         try {
-            ; Search for all possible target elements
-            this.focus_content_element := root.FindFirst({
+            process_name := WinGetProcessName("ahk_id " this.win_id)
+
+            ; Choose the HWND to use as the UIA root. The shared-content element
+            ; lives in the app's TOP-LEVEL UI tree, but win_id is usually a child
+            ; rendering window (new Teams: "TeamsVideo"; old Teams: a WebView2
+            ; sub-window) whose own UIA subtree is empty. So for Teams variants we
+            ; root at the top-level ancestor; WeMeet keeps its VideoWindow hop.
+            if (process_name = "ms-teams.exe" || process_name = "Teams.exe" || process_name = "msedgewebview2.exe") {
+                hwnd := DllCall("GetAncestor", "Ptr", this.win_id, "UInt", 2, "Ptr")  ; GA_ROOT = top-level window
+                if !hwnd
+                    hwnd := this.win_id
+            }
+            else if (process_name = "WeMeetApp.exe" && WinGetTitle("ahk_id " this.win_id) = "VideoWindow") {
+                hwnd := DllCall("GetParent", "Ptr", this.win_id, "Ptr")
+            }
+            else {
+                hwnd := this.win_id
+            }
+
+            if logDiag
+                writeLog("[DEBUG] focus(f): process=" process_name " win_id=" this.win_id " UIA root hwnd=" hwnd)
+
+            root := UIA.ElementFromHandle(hwnd)
+
+            ; Search for all possible target elements (Teams CN/EN, WeMeet).
+            ; In this UIA lib FindFirst THROWS when nothing matches, so guard it.
+            found := 0
+            try found := root.FindFirst({
                 Or: [
                     {Name: "共享内容视图"},
                     {Name: "Shared content view"},
                     {Name: "VideoLayoutExtensionWidget", ClassName: "QFWidget"}
                 ]
             })
-            if (this.focus_content_element.LocalizedType = "main") ; for Teams
-                this.focus_content_element := this.focus_content_element.FindFirst({Type:"Menu"})
+            if IsObject(found)
+            {
+                ; For Teams the shared-content pane is type "main"; the actual
+                ; rendered shared screen is its largest "menu" descendant (which
+                ; excludes the presenting/control bars). Pick the largest to avoid
+                ; transient dropdown menus; fall back to the pane itself.
+                if (found.LocalizedType = "main") {
+                    menuChild := 0, bestArea := 0
+                    try {
+                        for c in found.FindAll({Type: "Menu"}) {
+                            mr := c.BoundingRectangle
+                            area := (mr.r - mr.l) * (mr.b - mr.t)
+                            if (area > bestArea)
+                                bestArea := area, menuChild := c
+                        }
+                    }
+                    if IsObject(menuChild)
+                        found := menuChild
+                }
+                this.focus_content_element := found
+                this.focus_win_id := this.win_id
+                if logDiag {
+                    r := found.BoundingRectangle
+                    writeLog("[DEBUG] focus(f): FOUND  Name='" found.Name "' Type='" found.LocalizedType "' Class='" found.ClassName "' AutoId='" found.AutomationId "' rect=" r.l "," r.t "," r.r "," r.b)
+                }
+                return  ; success
+            }
 
-            this.focus_win_id := this.win_id
-        } catch {
-            this.is_focus_content := false
-            this.focus_content_element := 0
-            this.focus_win_id := 0
+            if logDiag
+                writeLog("[DEBUG] focus(f): shared-content element not found")
+        } catch Error as err {
+            if logDiag
+                writeLog("[DEBUG] focus(f): lookup threw: " err.Message)
+            ; fall through to "not found"
         }
+        ; Element not found / lookup failed - disable focus so callers fall back
+        ; to the plain window rect instead of freezing the overlay.
+        this.is_focus_content := false
+        this.focus_content_element := 0
+        this.focus_win_id := 0
     }
 
     change_border(option)
